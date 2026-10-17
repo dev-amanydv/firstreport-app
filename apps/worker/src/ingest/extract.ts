@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { JSDOM } from "jsdom";
-import { LEDE_MAX_PARAGRAPHS, LEDE_MAX_WORDS, MAX_LEDE_CHARS } from "@fr/shared";
+import { LEDE_MAX_PARAGRAPHS, LEDE_MAX_WORDS, LEDE_MIN_PARAGRAPH_WORDS, MAX_LEDE_CHARS } from "@fr/shared";
 
 export function cleanText(text: string) {
   return text.replace(/\s+/g, " ").trim();
@@ -21,7 +21,9 @@ export function htmlToParagraphs(html: string) {
 }
 
 export function makeLede(paragraphs: string[]) {
-  const words = paragraphs.slice(0, LEDE_MAX_PARAGRAPHS).join(" ").split(" ").filter(Boolean);
+  const substantial = paragraphs.filter((p) => wordCount(p) >= LEDE_MIN_PARAGRAPH_WORDS);
+  const chosen = substantial.length > 0 ? substantial : paragraphs;
+  const words = chosen.slice(0, LEDE_MAX_PARAGRAPHS).join(" ").split(" ").filter(Boolean);
   return words.slice(0, LEDE_MAX_WORDS).join(" ").slice(0, MAX_LEDE_CHARS);
 }
 

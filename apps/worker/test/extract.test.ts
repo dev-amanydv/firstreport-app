@@ -21,8 +21,18 @@ describe("htmlToParagraphs", () => {
 });
 
 describe("makeLede", () => {
+  const sentence = (word: string) => Array.from({ length: 12 }, () => word).join(" ");
+
   it("joins the first two paragraphs", () => {
-    expect(makeLede(["One.", "Two.", "Three."])).toBe("One. Two.");
+    expect(makeLede([sentence("one"), sentence("two"), sentence("three")])).toBe(`${sentence("one")} ${sentence("two")}`);
+  });
+
+  it("skips short boilerplate paragraphs", () => {
+    expect(makeLede(["Prefer HT on Google", sentence("news")])).toBe(sentence("news"));
+  });
+
+  it("keeps short paragraphs when there is nothing longer", () => {
+    expect(makeLede(["Short one.", "Short two."])).toBe("Short one. Short two.");
   });
 
   it("caps the word count", () => {

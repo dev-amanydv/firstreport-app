@@ -11,6 +11,7 @@ export const ROBOTS_CACHE_MS = 24 * 60 * 60 * 1000;
 export const THIN_RSS_WORDS = 60;
 export const LEDE_MAX_PARAGRAPHS = 2;
 export const LEDE_MAX_WORDS = 120;
+export const LEDE_MIN_PARAGRAPH_WORDS = 12;
 
 export const MAX_TITLE_CHARS = 300;
 export const MAX_LEDE_CHARS = 1_500;
