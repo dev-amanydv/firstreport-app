@@ -15,6 +15,7 @@
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r test",
     "label:pairs": "pnpm --filter @fr/worker label:pairs",
-    "label:report": "pnpm --filter @fr/worker label:report"
+    "label:report": "pnpm --filter @fr/worker label:report",
+    "events:reset": "pnpm --filter @fr/worker events:reset"
   }
 }
