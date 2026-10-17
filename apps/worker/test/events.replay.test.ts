@@ -28,7 +28,7 @@ let db: Database["db"];
 const sourceIds: string[] = [];
 let minute = 0;
 
-async function addArticle(sourceIndex: number, title: string, embedding: number[] | null) {
+async function addArticle(sourceIndex: number, title: string, embedding: number[] | null, fetchedAt = new Date()) {
   minute++;
   const [row] = await db
     .insert(articles)
@@ -40,6 +40,7 @@ async function addArticle(sourceIndex: number, title: string, embedding: number[
       lede: `${title}. More text.`,
       contentHash: `hash-${minute}`,
       publishedAt: new Date(Date.now() - (100 - minute) * 60_000),
+      fetchedAt,
       embedding,
     })
     .returning({ id: articles.id });
@@ -131,9 +132,36 @@ describe("event assignment", () => {
     expect(older!.title).toBe("Bridge collapses, 4 dead");
   });
 
+  it("defers a borderline article when Gemini fails, and still assigns the others", async () => {
+    const { centroid } = await centroidOf(bridgeEvent);
+    const waiting = await addArticle(2, "Bridge repair tender issued", mix(centroid, borderlineScore, 6));
+    const unrelated = await addArticle(1, "Cricket final washed out", vector({ 7: 1 }));
+    gemini.askJson.mockRejectedValueOnce(new Error("quota used up"));
+
+    const counts = await assignArticles(db, gemini);
+
+    expect(counts).toMatchObject({ deferred: 1, created: 1 });
+    const [row] = await db.select().from(articles).where(eq(articles.id, waiting));
+    expect(row).toMatchObject({ status: "new", eventId: null });
+    expect(await eventOf(unrelated)).toBeTruthy();
+    await db.delete(articles).where(eq(articles.id, waiting));
+  });
+
+  it("gives a long-waiting borderline article its own event when Gemini still fails", async () => {
+    const { centroid } = await centroidOf(bridgeEvent);
+    const longAgo = new Date(Date.now() - 3 * 3600_000);
+    const waiting = await addArticle(2, "Bridge contractor named", mix(centroid, borderlineScore, 8), longAgo);
+    gemini.askJson.mockRejectedValueOnce(new Error("quota used up"));
+
+    const counts = await assignArticles(db, gemini);
+
+    expect(counts).toMatchObject({ deferred: 0, created: 1 });
+    expect(await eventOf(waiting)).not.toBe(bridgeEvent);
+  });
+
   it("does nothing when run again", async () => {
     const before = await db.select().from(events).orderBy(asc(events.id));
-    expect(await assignArticles(db, gemini)).toEqual({ nearDuplicates: 0, joined: 0, asked: 0, created: 0 });
+    expect(await assignArticles(db, gemini)).toEqual({ nearDuplicates: 0, joined: 0, asked: 0, created: 0, deferred: 0 });
     expect(await db.select().from(events).orderBy(asc(events.id))).toEqual(before);
   });
 });
