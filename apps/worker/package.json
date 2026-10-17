@@ -6,7 +6,9 @@
     "tick": "tsx --env-file-if-exists=../../.env src/cli/tick.ts",
     "start": "tsx --env-file-if-exists=../../.env src/start.ts",
     "typecheck": "tsc -p .",
-    "test": "vitest run"
+    "test": "vitest run",
+    "label:pairs": "tsx --env-file-if-exists=../../.env src/cli/labelPairs.ts",
+    "label:report": "tsx src/cli/labelReport.ts"
   },
   "devDependencies": {
     "@types/jsdom": "^30.0.0",

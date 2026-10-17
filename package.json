@@ -13,6 +13,8 @@
     "worker:tick": "pnpm --filter @fr/worker tick",
     "worker:start": "pnpm --filter @fr/worker start",
     "typecheck": "pnpm -r typecheck",
-    "test": "pnpm -r test"
+    "test": "pnpm -r test",
+    "label:pairs": "pnpm --filter @fr/worker label:pairs",
+    "label:report": "pnpm --filter @fr/worker label:report"
   }
 }
