@@ -18,6 +18,7 @@
   "dependencies": {
     "@fr/db": "workspace:*",
     "@fr/shared": "workspace:*",
+    "@google/genai": "^2.30.0",
     "@mozilla/readability": "^0.6.0",
     "jsdom": "^30.1.3",
     "pg-boss": "^12.38.0",

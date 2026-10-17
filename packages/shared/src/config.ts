@@ -25,3 +25,33 @@ export const TRACKING_PARAMS = ["fbclid", "gclid", "ref"];
 export const TRACKING_PARAM_PREFIXES = ["utm_"];
 
 export const EMBEDDING_DIMENSIONS = 768;
+
+export const TIMEZONE = "Asia/Kolkata";
+
+export const EMBED_MODEL = "gemini-embedding-2";
+export const EMBED_TASK_PREFIX = "task: sentence similarity | query: ";
+export const EMBED_BATCH_SIZE = 100;
+export const TEXT_MODEL = "gemini-3.1-flash-lite";
+
+export const MODEL_PRICES: Record<string, { inputPerMillion: number; outputPerMillion: number }> = {
+  "gemini-embedding-2": { inputPerMillion: 0.2, outputPerMillion: 0 },
+  "gemini-3.1-flash-lite": { inputPerMillion: 0.25, outputPerMillion: 1.5 },
+};
+
+export const GEMINI_MAX_RETRIES = 5;
+export const GEMINI_BASE_DELAY_MS = 2_000;
+export const GEMINI_MAX_DELAY_MS = 65_000;
+
+export const NEAR_DUP_SAME_SOURCE = 0.95;
+export const NEAR_DUP_WINDOW_HOURS = 72;
+
+export const EVENT_JOIN = 0.85;
+export const EVENT_BORDER_LOW = 0.75;
+export const EVENT_WINDOW_HOURS = 72;
+export const EVENT_CANDIDATES = 3;
+
+export const LABEL_PAIR_COUNT = 200;
+export const LABEL_MIN_SCORE = 0.6;
+export const LABEL_BAND_WIDTH = 0.05;
+export const LABEL_TARGET_PRECISION = 0.95;
+export const LABEL_TARGET_RECALL = 0.95;
