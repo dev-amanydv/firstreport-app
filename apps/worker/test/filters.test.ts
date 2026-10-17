@@ -12,7 +12,13 @@ describe("isFiltered", () => {
     expect(isFiltered(url, "Normal title")).toBe(true);
   });
 
-  it.each(["Top 10 stories of the day", "Your morning brief: rain in Delhi", "Horoscope today, 17 October"])(
+  it.each([
+    "Top 10 stories of the day",
+    "Your morning brief: rain in Delhi",
+    "Horoscope today, 17 October",
+    "Gold Rate Today, October 16: Check 18, 22 and 24 carat gold prices",
+    "Daily Quiz: On Asian Games 2026",
+  ])(
     "filters title %s",
     (title) => {
       expect(isFiltered("https://x.com/india/a", title)).toBe(true);

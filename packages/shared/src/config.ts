@@ -19,7 +19,7 @@ export const MAX_BODY_CHARS = 20_000;
 export const MAX_PAGE_BYTES = 2_000_000;
 
 export const FILTERED_URL_PATTERNS = ["/live/", "live-updates", "/opinion/", "/editorial/", "/blogs/"];
-export const FILTERED_TITLE_PATTERNS = [/^top \d+\b/i, /morning brief/i, /horoscope/i];
+export const FILTERED_TITLE_PATTERNS = [/^top \d+\b/i, /morning brief/i, /horoscope/i, /^gold rate today/i, /^daily quiz/i];
 
 export const TRACKING_PARAMS = ["fbclid", "gclid", "ref"];
 export const TRACKING_PARAM_PREFIXES = ["utm_"];
@@ -42,16 +42,16 @@ export const GEMINI_MAX_RETRIES = 5;
 export const GEMINI_BASE_DELAY_MS = 2_000;
 export const GEMINI_MAX_DELAY_MS = 65_000;
 
-export const NEAR_DUP_SAME_SOURCE = 0.95;
+export const NEAR_DUP_SAME_SOURCE = 0.97;
 export const NEAR_DUP_WINDOW_HOURS = 72;
 
-export const EVENT_JOIN = 0.85;
-export const EVENT_BORDER_LOW = 0.75;
+export const EVENT_JOIN = 0.94;
+export const EVENT_BORDER_LOW = 0.86;
 export const EVENT_WINDOW_HOURS = 72;
 export const EVENT_CANDIDATES = 3;
 
 export const LABEL_PAIR_COUNT = 200;
-export const LABEL_MIN_SCORE = 0.6;
+export const LABEL_MIN_SCORE = 0.8;
 export const LABEL_BAND_WIDTH = 0.05;
 export const LABEL_TARGET_PRECISION = 0.95;
 export const LABEL_TARGET_RECALL = 0.95;

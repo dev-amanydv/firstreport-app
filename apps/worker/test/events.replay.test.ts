@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { articles, asc, eq, events, sources, type Database } from "@fr/db";
+import { EVENT_BORDER_LOW, EVENT_JOIN } from "@fr/shared";
 import type { Gemini } from "../src/gemini/client.js";
 import { assignArticles } from "../src/pipeline/assignEvents.js";
 import { embedArticles } from "../src/pipeline/embed.js";
@@ -14,6 +15,8 @@ function vector(entries: Record<number, number>) {
 function mix(base: number[], weight: number, extraDimension: number) {
   return normalize(base.map((value, i) => value * weight + (i === extraDimension ? Math.sqrt(1 - weight ** 2) : 0)));
 }
+
+const borderlineScore = (EVENT_JOIN + EVENT_BORDER_LOW) / 2;
 
 const gemini = {
   embed: vi.fn(async (texts: string[]) => texts.map((_, i) => vector({ [10 + i]: 1 }))),
@@ -68,7 +71,7 @@ afterAll(async () => {
 
 describe("event assignment", () => {
   const first = vector({ 0: 1 });
-  const second = vector({ 0: 0.95, 1: 0.312 });
+  const second = mix(first, EVENT_JOIN + 0.01, 1);
   let bridgeEvent = "";
   let bridgeArticle = "";
 
@@ -96,7 +99,7 @@ describe("event assignment", () => {
 
   it("asks Gemini on a borderline score and joins on yes", async () => {
     const { centroid } = await centroidOf(bridgeEvent);
-    const borderline = await addArticle(2, "Officials inspect bridge site", mix(centroid, 0.8, 3));
+    const borderline = await addArticle(2, "Officials inspect bridge site", mix(centroid, borderlineScore, 3));
     gemini.askJson.mockResolvedValueOnce({ same: true });
 
     const counts = await assignArticles(db, gemini);
@@ -108,7 +111,7 @@ describe("event assignment", () => {
 
   it("creates a new event when Gemini says no", async () => {
     const { centroid } = await centroidOf(bridgeEvent);
-    const borderline = await addArticle(1, "Another bridge in another state", mix(centroid, 0.8, 4));
+    const borderline = await addArticle(1, "Another bridge in another state", mix(centroid, borderlineScore, 4));
     gemini.askJson.mockResolvedValueOnce({ same: false });
 
     const counts = await assignArticles(db, gemini);
