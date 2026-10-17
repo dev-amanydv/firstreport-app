@@ -1,0 +1,1 @@
+CREATE DATABASE fr_test;
