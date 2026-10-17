@@ -18,6 +18,12 @@ function fakeFetch(input: string | URL | Request, init?: RequestInit) {
     }
     return Promise.resolve(new Response(fixture(server.feed), { headers: { etag: server.etag } }));
   }
+  if (url === "https://news.test/india-feed.xml") {
+    if (server.honourEtag && headers.get("If-None-Match") === '"b1"') {
+      return Promise.resolve(new Response(null, { status: 304 }));
+    }
+    return Promise.resolve(new Response(fixture("feed-b.xml"), { headers: { etag: '"b1"' } }));
+  }
   if (url === "https://news.test/business/rbi-repo-rate") {
     return Promise.resolve(new Response(fixture("rbi-page.html"), { headers: { "content-type": "text/html" } }));
   }
@@ -38,7 +44,7 @@ beforeAll(async () => {
   vi.stubGlobal("fetch", vi.fn(fakeFetch));
   await runMigrations(db);
   await db.execute(sql`truncate articles, events, stories, sources cascade`);
-  await db.insert(sources).values({ name: "Test News", domain: "news.test", rssUrls: ["https://news.test/feed.xml"] });
+  await db.insert(sources).values({ name: "Test News", domain: "news.test", rssUrls: ["https://news.test/feed.xml", "https://news.test/india-feed.xml"] });
 });
 
 afterAll(async () => {
@@ -49,7 +55,7 @@ afterAll(async () => {
 describe("ingest replay", () => {
   it("inserts new articles and drops filtered and duplicate items", { timeout: 15_000 }, async () => {
     const counts = await tick();
-    expect(counts).toMatchObject({ items: 4, filtered: 1, inserted: 2, unchanged: 1, pageFetches: 1 });
+    expect(counts).toMatchObject({ items: 3, filtered: 1, inserted: 2, pageFetches: 1 });
 
     const rows = await db.select().from(articles).orderBy(articles.title);
     expect(rows.map((row) => row.canonicalUrl)).toEqual([
@@ -66,23 +72,28 @@ describe("ingest replay", () => {
     expect(rbi!.bodyText).not.toContain("Home | Business");
   });
 
+  it("keeps the first feed's version when two feeds carry the same article", async () => {
+    const [row] = await db.select().from(articles).where(eq(articles.guid, "bridge-1"));
+    expect(row!.title).toBe("Bridge collapses in Kesarganj, four dead");
+  });
+
   it("adds nothing when the same feed is served again", async () => {
     server.honourEtag = false;
     const counts = await tick();
-    expect(counts).toMatchObject({ inserted: 0, edited: 0, unchanged: 3, pageFetches: 0 });
+    expect(counts).toMatchObject({ inserted: 0, edited: 0, unchanged: 2, pageFetches: 0 });
     server.honourEtag = true;
   });
 
   it("skips the feed on 304 Not Modified", async () => {
     const counts = await tick();
-    expect(counts).toMatchObject({ notModified: 1, items: 0 });
+    expect(counts).toMatchObject({ notModified: 2, items: 0 });
   });
 
   it("updates an edited article in place", async () => {
     server.feed = "feed-edited.xml";
     server.etag = '"v2"';
     const counts = await tick();
-    expect(counts).toMatchObject({ inserted: 0, edited: 1, unchanged: 2 });
+    expect(counts).toMatchObject({ inserted: 0, edited: 1, unchanged: 1 });
 
     const rows = await db.select().from(articles).where(eq(articles.guid, "bridge-1"));
     expect(rows).toHaveLength(1);
@@ -92,7 +103,8 @@ describe("ingest replay", () => {
 
   it("sends the stored etag on the next request", async () => {
     await tick();
-    const lastCall = vi.mocked(fetch).mock.calls.at(-1)!;
+    const feedCalls = vi.mocked(fetch).mock.calls.filter(([url]) => url === "https://news.test/feed.xml");
+    const lastCall = feedCalls.at(-1)!;
     expect(new Headers(lastCall[1]?.headers).get("If-None-Match")).toBe('"v2"');
   });
 });

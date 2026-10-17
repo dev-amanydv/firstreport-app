@@ -70,13 +70,19 @@ async function buildContent(item: FeedItem, rssParagraphs: string[], thin: boole
   return content;
 }
 
-async function processItem(db: Db, source: Source, item: FeedItem, counts: SourceCounts, dryRun: boolean) {
+async function processItem(
+  db: Db,
+  source: Source,
+  item: FeedItem,
+  canonicalUrl: string,
+  counts: SourceCounts,
+  dryRun: boolean,
+) {
   if (isFiltered(item.link, item.title)) {
     counts.filtered++;
     return;
   }
 
-  const canonicalUrl = normalizeUrl(item.link);
   const rssParagraphs = htmlToParagraphs(item.html);
   const rssText = rssParagraphs.join("\n\n");
   const thin = wordCount(rssText) < THIN_RSS_WORDS;
@@ -104,14 +110,21 @@ async function processItem(db: Db, source: Source, item: FeedItem, counts: Sourc
     return;
   }
 
-  const article = { ...content, sourceId: source.id, url: item.link, canonicalUrl, guid: item.guid, publishedAt: item.publishedAt };
+  const article = {
+    ...content,
+    sourceId: source.id,
+    url: item.link,
+    canonicalUrl,
+    guid: item.guid,
+    publishedAt: item.publishedAt,
+  };
   if (await insertArticle(db, article)) counts.inserted++;
   else counts.duplicates++;
 }
 
-export async function ingestSource(db: Db, source: Source, dryRun: boolean) {
-  const counts = emptyCounts();
-  const feedState: FeedState = { ...source.feedState };
+async function fetchSourceItems(source: Source, feedState: FeedState, counts: SourceCounts) {
+  const itemsByUrl = new Map<string, FeedItem>();
+  const fetchedCache: FeedState = {};
 
   for (const feedUrl of source.rssUrls) {
     counts.feeds++;
@@ -121,27 +134,37 @@ export async function ingestSource(db: Db, source: Source, dryRun: boolean) {
         counts.notModified++;
         continue;
       }
-
-      const errorsBefore = counts.itemErrors;
+      fetchedCache[feedUrl] = result.cache;
       for (const item of result.items) {
-        counts.items++;
-        try {
-          await processItem(db, source, item, counts, dryRun);
-        } catch (error) {
-          counts.itemErrors++;
-          console.error(`[${source.name}] item failed: ${item.link}`, error);
-        }
+        const canonicalUrl = normalizeUrl(item.link);
+        if (!itemsByUrl.has(canonicalUrl)) itemsByUrl.set(canonicalUrl, item);
       }
-
-      if (counts.itemErrors === errorsBefore) feedState[feedUrl] = result.cache;
     } catch (error) {
       counts.feedErrors++;
       console.error(`[${source.name}] feed failed: ${feedUrl}`, error instanceof Error ? error.message : error);
     }
   }
 
+  return { itemsByUrl, fetchedCache };
+}
+
+export async function ingestSource(db: Db, source: Source, dryRun: boolean) {
+  const counts = emptyCounts();
+  const { itemsByUrl, fetchedCache } = await fetchSourceItems(source, source.feedState, counts);
+
+  for (const [canonicalUrl, item] of itemsByUrl) {
+    counts.items++;
+    try {
+      await processItem(db, source, item, canonicalUrl, counts, dryRun);
+    } catch (error) {
+      counts.itemErrors++;
+      console.error(`[${source.name}] item failed: ${item.link}`, error);
+    }
+  }
+
   if (!dryRun) {
     const now = new Date();
+    const feedState = counts.itemErrors === 0 ? { ...source.feedState, ...fetchedCache } : source.feedState;
     await db
       .update(sources)
       .set({ feedState, lastFetchedAt: now, ...(counts.inserted > 0 ? { lastNewItemAt: now } : {}) })
