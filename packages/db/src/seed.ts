@@ -3,18 +3,20 @@ import { createDb } from "./client.js";
 import { databaseUrl } from "./env.js";
 import { sources } from "./schema.js";
 
-type SeedSource = { name: string; domain: string; rssUrls: string[]; active: boolean };
+type SeedSource = { name: string; domain: string; rssUrls: string[]; extraRssUrls?: string[]; active: boolean };
 
 const activeSources: SeedSource[] = [
   {
     name: "Indian Express",
     domain: "indianexpress.com",
-    rssUrls: ["https://indianexpress.com/section/india/feed/", "https://indianexpress.com/feed/"],
+    rssUrls: ["https://indianexpress.com/section/india/feed/"],
+    extraRssUrls: ["https://indianexpress.com/feed/"],
   },
   {
     name: "The Hindu",
     domain: "thehindu.com",
-    rssUrls: [
+    rssUrls: [],
+    extraRssUrls: [
       "https://www.thehindu.com/news/national/feeder/default.rss",
       "https://www.thehindu.com/business/feeder/default.rss",
       "https://www.thehindu.com/news/international/feeder/default.rss",
@@ -59,7 +61,8 @@ const activeSources: SeedSource[] = [
   {
     name: "Hindu BusinessLine",
     domain: "thehindubusinessline.com",
-    rssUrls: ["https://www.thehindubusinessline.com/feeder/default.rss"],
+    rssUrls: [],
+    extraRssUrls: ["https://www.thehindubusinessline.com/feeder/default.rss"],
   },
   { name: "Gadgets 360", domain: "gadgets360.com", rssUrls: ["https://feeds.feedburner.com/gadgets360-latest"] },
   { name: "The Quint", domain: "thequint.com", rssUrls: ["https://www.thequint.com/stories.rss"] },
@@ -81,12 +84,14 @@ const todoSources: SeedSource[] = [
   { name: "Financial Express", domain: "financialexpress.com" },
 ].map((s) => ({ ...s, rssUrls: ["TODO"], active: false }));
 
+const allFeeds = process.argv.includes("--all-feeds");
 const { db, close } = createDb(databaseUrl());
 
-for (const source of [...activeSources, ...todoSources]) {
+for (const { extraRssUrls = [], ...source } of [...activeSources, ...todoSources]) {
+  const rssUrls = allFeeds ? [...source.rssUrls, ...extraRssUrls] : source.rssUrls;
   await db
     .insert(sources)
-    .values(source)
+    .values({ ...source, rssUrls })
     .onConflictDoUpdate({
       target: sources.name,
       set: { domain: sql`excluded.domain`, rssUrls: sql`excluded.rss_urls` },
@@ -94,4 +99,4 @@ for (const source of [...activeSources, ...todoSources]) {
 }
 
 await close();
-console.log(`seeded ${activeSources.length} active and ${todoSources.length} todo sources`);
+console.log(`seeded ${activeSources.length} active and ${todoSources.length} todo sources${allFeeds ? " with all feeds" : ""}`);

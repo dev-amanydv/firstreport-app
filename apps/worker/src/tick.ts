@@ -1,16 +1,22 @@
-import { eq, sources, type Database, type Db } from "@fr/db";
-import { TICK_LOCK_ID } from "@fr/shared";
+import { articles, count, eq, gte, sources, startOfToday, type Database, type Db } from "@fr/db";
+import { MAX_NEW_ARTICLES_PER_DAY, TICK_LOCK_ID } from "@fr/shared";
 import type { Gemini } from "./gemini/client.js";
 import { ingestSource } from "./ingest/ingestSource.js";
 import { assignArticles } from "./pipeline/assignEvents.js";
 import { embedArticles } from "./pipeline/embed.js";
 
-type TickOptions = { dryRun: boolean; gemini: Gemini | null };
+type TickOptions = { dryRun: boolean; gemini: Gemini | null; maxNewArticlesPerDay?: number };
 
-async function ingestAll(db: Db, dryRun: boolean) {
+async function ingestAll(db: Db, dryRun: boolean, maxNewArticlesPerDay: number) {
+  const [today] = await db.select({ inserted: count() }).from(articles).where(gte(articles.fetchedAt, startOfToday()));
+  const allowance = { remaining: maxNewArticlesPerDay - (today?.inserted ?? 0) };
+
   const activeSources = await db.select().from(sources).where(eq(sources.active, true));
   const results = await Promise.all(
-    activeSources.map(async (source) => ({ source: source.name, ...(await ingestSource(db, source, dryRun)) })),
+    activeSources.map(async (source) => ({
+      source: source.name,
+      ...(await ingestSource(db, source, allowance, dryRun)),
+    })),
   );
   console.table(results);
   return results;
@@ -28,9 +34,9 @@ async function runStep<T>(name: string, step: () => Promise<T>) {
   }
 }
 
-async function runSteps(db: Db, { dryRun, gemini }: TickOptions) {
+async function runSteps(db: Db, { dryRun, gemini, maxNewArticlesPerDay = MAX_NEW_ARTICLES_PER_DAY }: TickOptions) {
   const startedAt = Date.now();
-  const ingest = await ingestAll(db, dryRun);
+  const ingest = await ingestAll(db, dryRun, maxNewArticlesPerDay);
   let embed = null;
   let assign = null;
 

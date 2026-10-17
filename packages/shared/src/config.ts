@@ -55,3 +55,5 @@ export const LABEL_MIN_SCORE = 0.6;
 export const LABEL_BAND_WIDTH = 0.05;
 export const LABEL_TARGET_PRECISION = 0.95;
 export const LABEL_TARGET_RECALL = 0.95;
+
+export const MAX_NEW_ARTICLES_PER_DAY = 500;

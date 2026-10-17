@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { articles, eq, sources, type Database } from "@fr/db";
+import { articles, eq, sources, sql, type Database } from "@fr/db";
 import { runTick } from "../src/tick.js";
 import { openTestDb } from "./testDb.js";
 
@@ -33,8 +33,8 @@ function fakeFetch(input: string | URL | Request, init?: RequestInit) {
 let database: Database;
 let db: Database["db"];
 
-async function tick() {
-  const result = await runTick(database, { dryRun: false, gemini: null });
+async function tick(maxNewArticlesPerDay?: number) {
+  const result = await runTick(database, { dryRun: false, gemini: null, maxNewArticlesPerDay });
   return result!.ingest[0]!;
 }
 
@@ -106,5 +106,16 @@ describe("ingest replay", () => {
     const feedCalls = vi.mocked(fetch).mock.calls.filter(([url]) => url === "https://news.test/feed.xml");
     const lastCall = feedCalls.at(-1)!;
     expect(new Headers(lastCall[1]?.headers).get("If-None-Match")).toBe('"v2"');
+  });
+
+  it("stops inserting new articles at the daily cap", async () => {
+    await db.execute(sql`truncate articles`);
+    await db.execute(sql`update sources set feed_state = '{}'`);
+    server.feed = "feed.xml";
+
+    const counts = await tick(1);
+
+    expect(counts).toMatchObject({ inserted: 1, capped: 1, pageFetches: 0 });
+    expect(await db.select().from(articles)).toHaveLength(1);
   });
 });

@@ -9,6 +9,8 @@ import { findExisting, insertArticle, updateArticle, type ArticleContent } from 
 
 type Source = typeof sources.$inferSelect;
 
+export type Allowance = { remaining: number };
+
 export type SourceCounts = {
   feeds: number;
   notModified: number;
@@ -19,6 +21,7 @@ export type SourceCounts = {
   edited: number;
   inserted: number;
   duplicates: number;
+  capped: number;
   pageFetches: number;
   pageErrors: number;
   itemErrors: number;
@@ -35,6 +38,7 @@ function emptyCounts(): SourceCounts {
     edited: 0,
     inserted: 0,
     duplicates: 0,
+    capped: 0,
     pageFetches: 0,
     pageErrors: 0,
     itemErrors: 0,
@@ -76,6 +80,7 @@ async function processItem(
   item: FeedItem,
   canonicalUrl: string,
   counts: SourceCounts,
+  allowance: Allowance,
   dryRun: boolean,
 ) {
   if (isFiltered(item.link, item.title)) {
@@ -93,6 +98,14 @@ async function processItem(
   if (existing && sameTitle && sameText) {
     counts.unchanged++;
     return;
+  }
+
+  if (!existing) {
+    if (allowance.remaining <= 0) {
+      counts.capped++;
+      return;
+    }
+    allowance.remaining--;
   }
 
   if (dryRun) {
@@ -118,8 +131,12 @@ async function processItem(
     guid: item.guid,
     publishedAt: item.publishedAt,
   };
-  if (await insertArticle(db, article)) counts.inserted++;
-  else counts.duplicates++;
+  if (await insertArticle(db, article)) {
+    counts.inserted++;
+  } else {
+    counts.duplicates++;
+    allowance.remaining++;
+  }
 }
 
 async function fetchSourceItems(source: Source, feedState: FeedState, counts: SourceCounts) {
@@ -148,14 +165,14 @@ async function fetchSourceItems(source: Source, feedState: FeedState, counts: So
   return { itemsByUrl, fetchedCache };
 }
 
-export async function ingestSource(db: Db, source: Source, dryRun: boolean) {
+export async function ingestSource(db: Db, source: Source, allowance: Allowance, dryRun: boolean) {
   const counts = emptyCounts();
   const { itemsByUrl, fetchedCache } = await fetchSourceItems(source, source.feedState, counts);
 
   for (const [canonicalUrl, item] of itemsByUrl) {
     counts.items++;
     try {
-      await processItem(db, source, item, canonicalUrl, counts, dryRun);
+      await processItem(db, source, item, canonicalUrl, counts, allowance, dryRun);
     } catch (error) {
       counts.itemErrors++;
       console.error(`[${source.name}] item failed: ${item.link}`, error);

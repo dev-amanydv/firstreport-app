@@ -5,8 +5,8 @@ import { openTestDb } from "./testDb.js";
 
 vi.mock("node:timers/promises", () => ({ setTimeout: async () => {} }));
 
-function apiError(status: number) {
-  return Object.assign(new Error(`status ${status}`), { status });
+function apiError(status: number, message = `status ${status}`) {
+  return Object.assign(new Error(message), { status });
 }
 
 function fakeModels() {
@@ -72,5 +72,23 @@ describe("gemini wrapper", () => {
     const [row] = await database.db.select().from(llmCalls);
     expect(row).toMatchObject({ inputTokens: 400_000, outputTokens: 100_000, costUsd: 0.25 });
     expect(await spentToday(database.db)).toBeCloseTo(0.25);
+  });
+
+  it("gives up at once when the quota is gone for a long time", async () => {
+    const models = fakeModels();
+    models.embedContent.mockRejectedValue(apiError(429, "Quota exceeded. Please retry in 3600.5s."));
+
+    await expect(createGemini(database.db, models).embed(["text"])).rejects.toThrow();
+    expect(models.embedContent).toHaveBeenCalledTimes(1);
+  });
+
+  it("still retries when the wait is short", async () => {
+    const models = fakeModels();
+    models.embedContent
+      .mockRejectedValueOnce(apiError(429, "Please retry in 5s."))
+      .mockResolvedValueOnce({ embeddings: [{ values: Array.from({ length: 768 }, () => 1) }] });
+
+    await createGemini(database.db, models).embed(["text"]);
+    expect(models.embedContent).toHaveBeenCalledTimes(2);
   });
 });
