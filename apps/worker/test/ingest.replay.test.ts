@@ -1,9 +1,9 @@
 import { readFileSync } from "node:fs";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { articles, createDb, eq, runMigrations, sources, sql } from "@fr/db";
+import { articles, eq, sources, type Database } from "@fr/db";
 import { runTick } from "../src/tick.js";
+import { openTestDb } from "./testDb.js";
 
-const testDbUrl = process.env.TEST_DATABASE_URL ?? "postgres://fr:fr@localhost:5432/fr_test";
 const fixture = (name: string) => readFileSync(new URL(`fixtures/${name}`, import.meta.url), "utf8");
 
 const server = { feed: "feed.xml", etag: '"v1"', honourEtag: true };
@@ -30,20 +30,20 @@ function fakeFetch(input: string | URL | Request, init?: RequestInit) {
   return Promise.resolve(new Response("not found", { status: 404 }));
 }
 
-const database = createDb(testDbUrl);
-const { db } = database;
+let database: Database;
+let db: Database["db"];
 
 async function tick() {
-  const results = await runTick(database, { dryRun: false });
-  return results![0]!;
+  const result = await runTick(database, { dryRun: false, gemini: null });
+  return result!.ingest[0]!;
 }
 
 beforeAll(async () => {
   vi.spyOn(console, "table").mockImplementation(() => {});
   vi.spyOn(console, "log").mockImplementation(() => {});
   vi.stubGlobal("fetch", vi.fn(fakeFetch));
-  await runMigrations(db);
-  await db.execute(sql`truncate articles, events, stories, sources cascade`);
+  database = await openTestDb();
+  db = database.db;
   await db.insert(sources).values({ name: "Test News", domain: "news.test", rssUrls: ["https://news.test/feed.xml", "https://news.test/india-feed.xml"] });
 });
 

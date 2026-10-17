@@ -1,11 +1,13 @@
 import { PgBoss } from "pg-boss";
 import { createDb, databaseUrl } from "@fr/db";
 import { TICK_CRON, TICK_EXPIRE_SECONDS } from "@fr/shared";
+import { geminiFromEnv } from "./gemini/client.js";
 import { runTick } from "./tick.js";
 
 const TICK_QUEUE = "tick";
 
 const database = createDb(databaseUrl());
+const gemini = geminiFromEnv(database.db);
 const boss = new PgBoss(databaseUrl());
 boss.on("error", (error) => console.error("pg-boss error", error));
 
@@ -13,7 +15,7 @@ await boss.start();
 await boss.createQueue(TICK_QUEUE, { policy: "singleton", expireInSeconds: TICK_EXPIRE_SECONDS, retryLimit: 0 });
 await boss.schedule(TICK_QUEUE, TICK_CRON);
 await boss.work(TICK_QUEUE, async () => {
-  await runTick(database, { dryRun: false });
+  await runTick(database, { dryRun: false, gemini });
 });
 
 console.log(`worker started, tick schedule: ${TICK_CRON}`);
