@@ -1,5 +1,6 @@
 export const TICK_CRON = "*/15 * * * *";
 export const TICK_LOCK_ID = 7_315_001;
+export const TICK_EXPIRE_SECONDS = 60 * 60;
 
 export const ROBOTS_AGENT = "FirstReportBot";
 export const USER_AGENT = `${ROBOTS_AGENT}/0.1`;
