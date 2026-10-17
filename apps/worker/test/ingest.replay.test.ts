@@ -1,0 +1,98 @@
+import { readFileSync } from "node:fs";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { articles, createDb, eq, runMigrations, sources, sql } from "@fr/db";
+import { runTick } from "../src/tick.js";
+
+const testDbUrl = process.env.TEST_DATABASE_URL ?? "postgres://fr:fr@localhost:5432/fr_test";
+const fixture = (name: string) => readFileSync(new URL(`fixtures/${name}`, import.meta.url), "utf8");
+
+const server = { feed: "feed.xml", etag: '"v1"', honourEtag: true };
+
+function fakeFetch(input: string | URL | Request, init?: RequestInit) {
+  const url = input.toString();
+  const headers = new Headers(init?.headers);
+
+  if (url === "https://news.test/feed.xml") {
+    if (server.honourEtag && headers.get("If-None-Match") === server.etag) {
+      return Promise.resolve(new Response(null, { status: 304 }));
+    }
+    return Promise.resolve(new Response(fixture(server.feed), { headers: { etag: server.etag } }));
+  }
+  if (url === "https://news.test/business/rbi-repo-rate") {
+    return Promise.resolve(new Response(fixture("rbi-page.html"), { headers: { "content-type": "text/html" } }));
+  }
+  return Promise.resolve(new Response("not found", { status: 404 }));
+}
+
+const database = createDb(testDbUrl);
+const { db } = database;
+
+async function tick() {
+  const results = await runTick(database, { dryRun: false });
+  return results![0]!;
+}
+
+beforeAll(async () => {
+  vi.spyOn(console, "table").mockImplementation(() => {});
+  vi.spyOn(console, "log").mockImplementation(() => {});
+  vi.stubGlobal("fetch", vi.fn(fakeFetch));
+  await runMigrations(db);
+  await db.execute(sql`truncate articles, events, stories, sources cascade`);
+  await db.insert(sources).values({ name: "Test News", domain: "news.test", rssUrls: ["https://news.test/feed.xml"] });
+});
+
+afterAll(async () => {
+  vi.unstubAllGlobals();
+  await database.close();
+});
+
+describe("ingest replay", () => {
+  it("inserts new articles and drops filtered and duplicate items", { timeout: 15_000 }, async () => {
+    const counts = await tick();
+    expect(counts).toMatchObject({ items: 4, filtered: 1, inserted: 2, unchanged: 1, pageFetches: 1 });
+
+    const rows = await db.select().from(articles).orderBy(articles.title);
+    expect(rows.map((row) => row.canonicalUrl)).toEqual([
+      "https://news.test/india/bridge-collapse-kesarganj",
+      "https://news.test/business/rbi-repo-rate",
+    ]);
+
+    const [bridge, rbi] = rows;
+    expect(bridge).toMatchObject({ imageUrl: "https://img.news.test/bridge.jpg", bodyText: null, status: "new" });
+    expect(bridge!.lede).toContain("killing four people");
+
+    expect(rbi!.imageUrl).toBe("https://img.news.test/rbi.jpg");
+    expect(rbi!.lede).toContain("repo rate unchanged at 5.5 per cent");
+    expect(rbi!.bodyText).not.toContain("Home | Business");
+  });
+
+  it("adds nothing when the same feed is served again", async () => {
+    server.honourEtag = false;
+    const counts = await tick();
+    expect(counts).toMatchObject({ inserted: 0, edited: 0, unchanged: 3, pageFetches: 0 });
+    server.honourEtag = true;
+  });
+
+  it("skips the feed on 304 Not Modified", async () => {
+    const counts = await tick();
+    expect(counts).toMatchObject({ notModified: 1, items: 0 });
+  });
+
+  it("updates an edited article in place", async () => {
+    server.feed = "feed-edited.xml";
+    server.etag = '"v2"';
+    const counts = await tick();
+    expect(counts).toMatchObject({ inserted: 0, edited: 1, unchanged: 2 });
+
+    const rows = await db.select().from(articles).where(eq(articles.guid, "bridge-1"));
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.title).toBe("Bridge collapses in Kesarganj, five dead");
+    expect(rows[0]!.lede).toContain("killing five people");
+  });
+
+  it("sends the stored etag on the next request", async () => {
+    await tick();
+    const lastCall = vi.mocked(fetch).mock.calls.at(-1)!;
+    expect(new Headers(lastCall[1]?.headers).get("If-None-Match")).toBe('"v2"');
+  });
+});

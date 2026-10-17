@@ -29,3 +29,7 @@ export function contentHash(title: string, text: string) {
   const normalized = cleanText(`${title}\n${text}`).toLowerCase();
   return createHash("sha256").update(normalized).digest("hex");
 }
+
+export function htmlToText(html: string) {
+  return cleanText(JSDOM.fragment(html).textContent ?? "");
+}

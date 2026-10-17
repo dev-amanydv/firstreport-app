@@ -1,9 +1,11 @@
 export const TICK_CRON = "*/15 * * * *";
 export const TICK_LOCK_ID = 7_315_001;
 
-export const USER_AGENT = "FirstReportBot/0.1 (+https://firstreport.app/bot)";
+export const ROBOTS_AGENT = "FirstReportBot";
+export const USER_AGENT = `${ROBOTS_AGENT}/0.1`;
 export const FETCH_TIMEOUT_MS = 15_000;
 export const PAGE_FETCH_GAP_MS = 3_000;
+export const ROBOTS_CACHE_MS = 24 * 60 * 60 * 1000;
 
 export const THIN_RSS_WORDS = 60;
 export const LEDE_MAX_PARAGRAPHS = 2;

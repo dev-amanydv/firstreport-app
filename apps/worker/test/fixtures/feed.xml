@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:content="http://purl.org/rss/1.0/modules/content/" xmlns:media="http://search.yahoo.com/mrss/">
+<channel>
+<title>Test News</title>
+<item>
+  <title>Bridge collapses in Kesarganj, four dead</title>
+  <link>https://news.test/india/bridge-collapse-kesarganj?utm_source=rss</link>
+  <guid>bridge-1</guid>
+  <pubDate>Thu, 16 Oct 2026 18:30:00 GMT</pubDate>
+  <content:encoded><![CDATA[<p>The Kesarganj bridge over the Ganga collapsed on Thursday evening, killing four people and injuring twelve, district officials said. Rescue teams from the NDRF reached the site within two hours and pulled survivors from the water.</p><p>The bridge was built in 2009 and had been flagged for repairs in a 2024 state audit. The district magistrate has ordered an inquiry and said a report will be submitted within fifteen days. Traffic has been diverted through the old highway.</p>]]></content:encoded>
+  <media:content url="https://img.news.test/bridge.jpg" medium="image" />
+</item>
+<item>
+  <title>RBI keeps repo rate unchanged</title>
+  <link>https://news.test/business/rbi-repo-rate</link>
+  <guid>rbi-1</guid>
+  <pubDate>Thu, 16 Oct 2026 10:00:00 GMT</pubDate>
+  <description>The central bank held rates.</description>
+</item>
+<item>
+  <title>Election results live updates</title>
+  <link>https://news.test/live/election-results</link>
+  <guid>live-1</guid>
+  <description>Follow along.</description>
+</item>
+<item>
+  <title>Bridge collapses in Kesarganj, four dead</title>
+  <link>https://m.news.test/india/bridge-collapse-kesarganj/amp</link>
+  <guid>bridge-1-amp</guid>
+  <content:encoded><![CDATA[<p>The Kesarganj bridge over the Ganga collapsed on Thursday evening, killing four people and injuring twelve, district officials said. Rescue teams from the NDRF reached the site within two hours and pulled survivors from the water.</p><p>The bridge was built in 2009 and had been flagged for repairs in a 2024 state audit. The district magistrate has ordered an inquiry and said a report will be submitted within fifteen days. Traffic has been diverted through the old highway.</p>]]></content:encoded>
+</item>
+</channel>
+</rss>
