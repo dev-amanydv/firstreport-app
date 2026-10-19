@@ -64,3 +64,10 @@ export const LABEL_TARGET_RECALL = 0.95;
 
 export const MAX_NEW_ARTICLES_PER_DAY = 250;
 export const EVENT_ASK_MAX_WAIT_HOURS = 2;
+
+export const CARD_MODEL = TEXT_MODEL;
+export const CARD_MAX_ARTICLES = 5;
+export const CARD_MAX_WORDS = 60;
+export const HEADLINE_MAX_WORDS = 12;
+export const CARD_LEDE_MAX_CHARS = 1_000;
+export const CARDS_PER_TICK = 40;
