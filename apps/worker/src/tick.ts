@@ -4,6 +4,7 @@ import type { Gemini } from "./gemini/client.js";
 import { ingestSource } from "./ingest/ingestSource.js";
 import { assignArticles } from "./pipeline/assignEvents.js";
 import { embedArticles } from "./pipeline/embed.js";
+import { writeCards } from "./pipeline/writeCards.js";
 
 type TickOptions = { dryRun: boolean; gemini: Gemini | null; maxNewArticlesPerDay?: number };
 
@@ -35,10 +36,11 @@ async function runStep<T>(name: string, step: () => Promise<T>) {
 }
 
 async function runSteps(db: Db, { dryRun, gemini, maxNewArticlesPerDay = MAX_NEW_ARTICLES_PER_DAY }: TickOptions) {
-  const startedAt = Date.now();
+  const startedAt = new Date();
   const ingest = await ingestAll(db, dryRun, maxNewArticlesPerDay);
   let embed = null;
   let assign = null;
+  let cards = null;
 
   if (dryRun) {
     console.log("dry run: nothing written, later steps skipped");
@@ -47,10 +49,11 @@ async function runSteps(db: Db, { dryRun, gemini, maxNewArticlesPerDay = MAX_NEW
   } else {
     embed = await runStep("embed", () => embedArticles(db, gemini));
     assign = await runStep("assign", () => assignArticles(db, gemini));
+    cards = await runStep("cards", () => writeCards(db, gemini, startedAt));
   }
 
-  console.log(`tick finished in ${((Date.now() - startedAt) / 1000).toFixed(1)}s`);
-  return { ingest, embed, assign };
+  console.log(`tick finished in ${((Date.now() - startedAt.getTime()) / 1000).toFixed(1)}s`);
+  return { ingest, embed, assign, cards };
 }
 
 export async function runTick({ db, client }: Database, options: TickOptions) {
