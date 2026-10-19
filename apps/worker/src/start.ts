@@ -1,10 +1,12 @@
 import { PgBoss } from "pg-boss";
 import { createDb, databaseUrl } from "@fr/db";
-import { TICK_CRON, TICK_EXPIRE_SECONDS } from "@fr/shared";
+import { NIGHTLY_CRON, NIGHTLY_EXPIRE_SECONDS, TICK_CRON, TICK_EXPIRE_SECONDS, TIMEZONE } from "@fr/shared";
 import { geminiFromEnv } from "./gemini/client.js";
+import { runNightly } from "./nightly.js";
 import { runTick } from "./tick.js";
 
 const TICK_QUEUE = "tick";
+const NIGHTLY_QUEUE = "nightly";
 
 const database = createDb(databaseUrl());
 const gemini = geminiFromEnv(database.db);
@@ -18,7 +20,13 @@ await boss.work(TICK_QUEUE, async () => {
   await runTick(database, { dryRun: false, gemini });
 });
 
-console.log(`worker started, tick schedule: ${TICK_CRON}`);
+await boss.createQueue(NIGHTLY_QUEUE, { policy: "singleton", expireInSeconds: NIGHTLY_EXPIRE_SECONDS, retryLimit: 0 });
+await boss.schedule(NIGHTLY_QUEUE, NIGHTLY_CRON, null, { tz: TIMEZONE });
+await boss.work(NIGHTLY_QUEUE, async () => {
+  await runNightly(database);
+});
+
+console.log(`worker started, tick schedule: ${TICK_CRON}, nightly: ${NIGHTLY_CRON} ${TIMEZONE}`);
 
 async function shutdown() {
   await boss.stop();

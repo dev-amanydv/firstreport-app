@@ -92,3 +92,10 @@ export const DAILY_BUDGET_SOFT = 1.5;
 export const DAILY_BUDGET_HARD = 3.0;
 // On the free tier, the material-change step also stops once a model has used this share of its daily cap.
 export const FREE_TIER_SOFT_SHARE = 0.8;
+
+export const NIGHTLY_CRON = "30 2 * * *"; // 02:30 in TIMEZONE
+export const NIGHTLY_EXPIRE_SECONDS = 60 * 60;
+export const MERGE_WINDOW_HOURS = 48;
+export const BODY_RETENTION_DAYS = 14;
+export const STORY_DORMANT_DAYS = 30;
+export const SOURCE_SILENT_HOURS = 24;

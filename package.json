@@ -17,6 +17,7 @@
     "label:pairs": "pnpm --filter @fr/worker label:pairs",
     "label:report": "pnpm --filter @fr/worker label:report",
     "events:reset": "pnpm --filter @fr/worker events:reset",
-    "cards:report": "pnpm --filter @fr/worker cards:report"
+    "cards:report": "pnpm --filter @fr/worker cards:report",
+    "worker:nightly": "pnpm --filter @fr/worker nightly"
   }
 }
