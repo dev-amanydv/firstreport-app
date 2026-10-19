@@ -58,11 +58,7 @@ export function createGemini(db: Db, models: GeminiModels, { dailyRequestCaps = 
   async function checkDailyCap(model: string) {
     const cap = dailyRequestCaps[model];
     if (cap === undefined) return;
-    const [row] = await db
-      .select({ requests: count() })
-      .from(llmCalls)
-      .where(and(eq(llmCalls.model, model), gte(llmCalls.createdAt, startOfToday())));
-    if ((row?.requests ?? 0) >= cap) throw new DailyQuotaReached(model, cap);
+    if ((await requestsToday(db, model)) >= cap) throw new DailyQuotaReached(model, cap);
   }
 
   async function call<T>(purpose: LlmPurpose, model: string, run: () => Promise<CallResult<T>>) {
@@ -132,6 +128,19 @@ export function createGemini(db: Db, models: GeminiModels, { dailyRequestCaps = 
   return { embed, askJson };
 }
 
+export async function requestsToday(db: Db, model: string) {
+  const [row] = await db
+    .select({ requests: count() })
+    .from(llmCalls)
+    .where(and(eq(llmCalls.model, model), gte(llmCalls.createdAt, startOfToday())));
+  return row?.requests ?? 0;
+}
+
+// Caps are on unless GEMINI_FREE_TIER=false, which production sets.
+export function dailyRequestCapsFromEnv() {
+  return process.env.GEMINI_FREE_TIER === "false" ? {} : FREE_TIER_DAILY_REQUESTS;
+}
+
 export async function spentToday(db: Db) {
   const [row] = await db
     .select({ total: sql<string>`coalesce(sum(${llmCalls.costUsd}), 0)` })
@@ -143,8 +152,5 @@ export async function spentToday(db: Db) {
 export function geminiFromEnv(db: Db) {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) return null;
-  const freeTier = process.env.GEMINI_FREE_TIER !== "false";
-  return createGemini(db, new GoogleGenAI({ apiKey }).models, {
-    dailyRequestCaps: freeTier ? FREE_TIER_DAILY_REQUESTS : {},
-  });
+  return createGemini(db, new GoogleGenAI({ apiKey }).models, { dailyRequestCaps: dailyRequestCapsFromEnv() });
 }

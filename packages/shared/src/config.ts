@@ -83,3 +83,12 @@ export const STORY_LABEL_PAIR_COUNT = 100;
 export const STORY_LABEL_MIN_SCORE = 0.8;
 export const SUMMARY_TARGET_WORDS = 120;
 export const SUMMARY_MAX_WORDS = 150;
+
+export const MATERIAL_WINDOW_HOURS = 24;
+export const MAX_REGENS = 3;
+
+// Paid-price USD per day. Soft skips the material-change step; hard also pauses card writing.
+export const DAILY_BUDGET_SOFT = 1.5;
+export const DAILY_BUDGET_HARD = 3.0;
+// On the free tier, the material-change step also stops once a model has used this share of its daily cap.
+export const FREE_TIER_SOFT_SHARE = 0.8;

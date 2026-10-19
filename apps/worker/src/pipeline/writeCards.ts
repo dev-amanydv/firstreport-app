@@ -28,23 +28,26 @@ export async function generateCard(gemini: Gemini, reports: CardReport[]): Promi
   return { ...check(second, sourceTexts), retried: true };
 }
 
+export function cardFields(card: Card) {
+  return {
+    headline: card.headline,
+    category: card.category,
+    neutral: card.neutral,
+    contested: card.contested,
+    contestedReason: card.contested ? card.contestedReason : null,
+    leftText: card.left,
+    rightText: card.right,
+    entities: card.entities,
+    storyLabel: card.storyLabel,
+    genVersion: CARD_PROMPT_VERSION,
+    cardGeneratedAt: new Date(),
+  };
+}
+
 async function publish(db: Db, eventId: string, card: Card) {
   await db
     .update(events)
-    .set({
-      headline: card.headline,
-      category: card.category,
-      neutral: card.neutral,
-      contested: card.contested,
-      contestedReason: card.contested ? card.contestedReason : null,
-      leftText: card.left,
-      rightText: card.right,
-      entities: card.entities,
-      storyLabel: card.storyLabel,
-      genVersion: CARD_PROMPT_VERSION,
-      cardGeneratedAt: new Date(),
-      status: "published",
-    })
+    .set({ ...cardFields(card), status: "published" })
     .where(and(eq(events.id, eventId), eq(events.status, "collecting")));
 }
 

@@ -1,10 +1,12 @@
 import { articles, count, eq, gte, sources, startOfToday, type Database, type Db } from "@fr/db";
 import { MAX_NEW_ARTICLES_PER_DAY, TICK_LOCK_ID } from "@fr/shared";
-import type { Gemini } from "./gemini/client.js";
+import { dailyRequestCapsFromEnv, type Gemini } from "./gemini/client.js";
 import { ingestSource } from "./ingest/ingestSource.js";
 import { assignArticles } from "./pipeline/assignEvents.js";
+import { budgetBrake } from "./pipeline/budget.js";
 import { embedArticles } from "./pipeline/embed.js";
 import { linkStories } from "./pipeline/linkStories.js";
+import { checkMaterialChanges } from "./pipeline/materialChanges.js";
 import { updateSummaries } from "./pipeline/updateSummaries.js";
 import { writeCards } from "./pipeline/writeCards.js";
 
@@ -45,21 +47,25 @@ async function runSteps(db: Db, { dryRun, gemini, maxNewArticlesPerDay = MAX_NEW
   let cards = null;
   let stories = null;
   let summaries = null;
+  let material = null;
 
   if (dryRun) {
     console.log("dry run: nothing written, later steps skipped");
   } else if (!gemini) {
-    console.log("GEMINI_API_KEY is not set: embed and assign skipped");
+    console.log("GEMINI_API_KEY is not set: Gemini steps skipped");
   } else {
     embed = await runStep("embed", () => embedArticles(db, gemini));
     assign = await runStep("assign", () => assignArticles(db, gemini));
-    cards = await runStep("cards", () => writeCards(db, gemini, startedAt));
+    const brake = await budgetBrake(db, dailyRequestCapsFromEnv());
+    console.log(`budget: $${brake.spentUsd.toFixed(3)} today${brake.skipMaterial ? ", material check skipped" : ""}`);
+    if (!brake.pauseCards) cards = await runStep("cards", () => writeCards(db, gemini, startedAt));
     stories = await runStep("stories", () => linkStories(db, gemini));
     summaries = await runStep("summaries", () => updateSummaries(db, gemini));
+    if (!brake.skipMaterial) material = await runStep("material", () => checkMaterialChanges(db, gemini));
   }
 
   console.log(`tick finished in ${((Date.now() - startedAt.getTime()) / 1000).toFixed(1)}s`);
-  return { ingest, embed, assign, cards, stories, summaries };
+  return { ingest, embed, assign, cards, stories, summaries, material };
 }
 
 export async function runTick({ db, client }: Database, options: TickOptions) {
