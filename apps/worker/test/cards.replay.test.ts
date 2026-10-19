@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { articles, eq, events, sources, sql, type Database } from "@fr/db";
+import { CARD_MAX_AGE_HOURS } from "@fr/shared";
 import { DailyQuotaReached, type Gemini } from "../src/gemini/client.js";
 import { CARD_PROMPT_VERSION } from "../src/prompts/card.js";
 import { writeCards } from "../src/pipeline/writeCards.js";
@@ -125,6 +126,14 @@ describe("writeCards", () => {
 
   it("waits a tick for Events created after this tick started", async () => {
     const id = await addEvent(new Date(tickStartedAt.getTime() + 1000));
+
+    expect(await writeCards(db, gemini, tickStartedAt)).toEqual({ published: 0, failed: 0, deferred: 0 });
+    expect(gemini.askJson).not.toHaveBeenCalled();
+    expect((await eventRow(id)).status).toBe("collecting");
+  });
+
+  it("never writes cards for Events older than the age limit", async () => {
+    const id = await addEvent(new Date(tickStartedAt.getTime() - (CARD_MAX_AGE_HOURS + 1) * 3600_000));
 
     expect(await writeCards(db, gemini, tickStartedAt)).toEqual({ published: 0, failed: 0, deferred: 0 });
     expect(gemini.askJson).not.toHaveBeenCalled();

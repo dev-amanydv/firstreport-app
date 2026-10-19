@@ -71,3 +71,4 @@ export const CARD_MAX_WORDS = 60;
 export const HEADLINE_MAX_WORDS = 12;
 export const CARD_LEDE_MAX_CHARS = 1_000;
 export const CARDS_PER_TICK = 40;
+export const CARD_MAX_AGE_HOURS = 24;

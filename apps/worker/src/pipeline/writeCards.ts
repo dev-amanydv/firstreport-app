@@ -1,5 +1,5 @@
-import { and, asc, eq, events, lt, type Db } from "@fr/db";
-import { CARD_MODEL, CARDS_PER_TICK } from "@fr/shared";
+import { and, asc, eq, events, gte, lt, type Db } from "@fr/db";
+import { CARD_MAX_AGE_HOURS, CARD_MODEL, CARDS_PER_TICK } from "@fr/shared";
 import type { Gemini } from "../gemini/client.js";
 import { CARD_PROMPT_VERSION, cardPrompt, cardSchema, parseCard, retryPrompt, type Card, type CardReport } from "../prompts/card.js";
 import { loadCardReports } from "./cardInput.js";
@@ -56,13 +56,15 @@ async function markFailed(db: Db, eventId: string) {
 }
 
 // Steps 7-9. Only Events created before this tick started get a card, so sibling articles have a tick to arrive.
+// Events older than CARD_MAX_AGE_HOURS are never carded: stale news is not worth the Gemini calls.
 export async function writeCards(db: Db, gemini: Gemini, tickStartedAt: Date) {
   const counts = { published: 0, failed: 0, deferred: 0 };
+  const oldest = new Date(tickStartedAt.getTime() - CARD_MAX_AGE_HOURS * 3600_000);
 
   const pending = await db
     .select({ id: events.id })
     .from(events)
-    .where(and(eq(events.status, "collecting"), lt(events.firstSeenAt, tickStartedAt)))
+    .where(and(eq(events.status, "collecting"), lt(events.firstSeenAt, tickStartedAt), gte(events.firstSeenAt, oldest)))
     .orderBy(asc(events.firstSeenAt))
     .limit(CARDS_PER_TICK);
 
