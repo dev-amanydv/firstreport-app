@@ -1,4 +1,4 @@
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createDb, databaseUrl } from "@fr/db";
@@ -8,10 +8,16 @@ import { CARD_PROMPT_VERSION, type CardReport } from "../prompts/card.js";
 import { loadCardReports } from "../pipeline/cardInput.js";
 import { generateCard, type CardAttempt } from "../pipeline/writeCards.js";
 
-const countArg = process.argv.indexOf("--n");
-const count = countArg > 0 ? Number(process.argv[countArg + 1]) : 30;
+function arg(name: string) {
+  const index = process.argv.indexOf(name);
+  return index > 0 ? process.argv[index + 1] : undefined;
+}
+
+const count = Number(arg("--n") ?? 30);
+// --from <report.md> re-runs the Events of an earlier report, so two prompt versions compare like for like.
+const fromReport = arg("--from");
 const date = new Date().toISOString().slice(0, 10);
-const reportPath = fileURLToPath(new URL(`../../../../data/cards-${date}.md`, import.meta.url));
+const reportPath = fileURLToPath(new URL(`../../../../data/cards-${date}-v${CARD_PROMPT_VERSION}.md`, import.meta.url));
 
 const { db, client, close } = createDb(databaseUrl());
 const gemini = geminiFromEnv(db);
@@ -21,17 +27,19 @@ if (!gemini) {
 }
 
 // Multi-source Events first: they are the hard cases. Events are only read, never updated.
-const picked = await client<{ id: string; articleCount: number }[]>`
-  select id, article_count as "articleCount" from events
-  where status in ('collecting', 'published', 'failed')
-    and last_article_at > now() - make_interval(hours => ${EVENT_WINDOW_HOURS})
-  order by least(article_count, 3) desc, random()
-  limit ${count}
-`;
+const picked = fromReport
+  ? [...readFileSync(fromReport, "utf8").matchAll(/^Event: (\S+)$/gm)].map((match) => ({ id: match[1]! }))
+  : await client<{ id: string }[]>`
+      select id from events
+      where status in ('collecting', 'published', 'failed')
+        and last_article_at > now() - make_interval(hours => ${EVENT_WINDOW_HOURS})
+      order by least(article_count, 3) desc, random()
+      limit ${count}
+    `;
 const startedAt = new Date();
 
-function section(index: number, reports: CardReport[], attempt: CardAttempt) {
-  const lines = [`## ${index}. ${attempt.card?.headline ?? "(no card)"}`, ""];
+function section(index: number, eventId: string, reports: CardReport[], attempt: CardAttempt) {
+  const lines = [`## ${index}. ${attempt.card?.headline ?? "(no card)"}`, "", `Event: ${eventId}`, ""];
   lines.push(`**Sources (${reports.length}):** ${reports.map((r) => `${r.source}: ${r.title}`).join(" · ")}`, "");
   if (attempt.card) {
     const card = attempt.card;
@@ -49,6 +57,7 @@ function section(index: number, reports: CardReport[], attempt: CardAttempt) {
 
 const sections: string[] = [];
 let valid = 0;
+let contested = 0;
 
 // Rewritten after every Event, so a crash or the daily cap never loses finished cards.
 async function writeReport() {
@@ -58,7 +67,7 @@ async function writeReport() {
   `;
   const header = `# Card report ${date}
 
-Model \`${CARD_MODEL}\`, prompt v${CARD_PROMPT_VERSION}. ${sections.length} Events, ${valid} passed validation.
+Model \`${CARD_MODEL}\`, prompt v${CARD_PROMPT_VERSION}. ${sections.length} Events, ${valid} passed validation, ${contested} contested.
 ${usage!.calls} Gemini calls, $${Number(usage!.cost).toFixed(4)} at paid prices.
 Gate: publishable as is for at least 90% of Events (27 of 30).
 `;
@@ -71,7 +80,8 @@ for (const event of picked) {
   try {
     const attempt = await generateCard(gemini, reports);
     if (!attempt.errors.length) valid++;
-    sections.push(section(sections.length + 1, reports, attempt));
+    if (attempt.card?.contested) contested++;
+    sections.push(section(sections.length + 1, event.id, reports, attempt));
     console.log(`${sections.length}/${picked.length} ${attempt.card?.headline ?? attempt.errors[0]}`);
   } catch (error) {
     console.warn(`stopped after ${sections.length} Events:`, error instanceof Error ? error.message.slice(0, 200) : error);
