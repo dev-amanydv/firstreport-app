@@ -81,3 +81,5 @@ export const STORY_RECENT_EVENTS = 3;
 export const STORY_CANDIDATES = 3;
 export const STORY_LABEL_PAIR_COUNT = 100;
 export const STORY_LABEL_MIN_SCORE = 0.8;
+export const SUMMARY_TARGET_WORDS = 120;
+export const SUMMARY_MAX_WORDS = 150;
