@@ -1,5 +1,5 @@
-import { and, articles, asc, cosineDistance, eq, events, gte, inArray, isNotNull, sql, type Db } from "@fr/db";
-import { EVENT_ASK_MAX_WAIT_HOURS, EVENT_CANDIDATES, EVENT_WINDOW_HOURS } from "@fr/shared";
+import { and, articles, asc, cosineDistance, eq, events, gte, isNotNull, or, sql, type Db } from "@fr/db";
+import { CARD_MAX_AGE_HOURS, EVENT_ASK_MAX_WAIT_HOURS, EVENT_CANDIDATES, EVENT_WINDOW_HOURS } from "@fr/shared";
 import type { Gemini } from "../gemini/client.js";
 import { parseSameEvent, sameEventPrompt, sameEventSchema } from "../prompts/sameEvent.js";
 import { decideEventAction } from "./eventDecision.js";
@@ -12,11 +12,18 @@ type Choice = { action: "join"; eventId: string } | { action: "new" } | { action
 async function candidateEvents(db: Db, article: PendingArticle) {
   const distance = cosineDistance(events.centroid, article.embedding);
   const since = new Date(Date.now() - EVENT_WINDOW_HOURS * 3600_000);
+  // A collecting Event past the card age limit will never be published, so it must not take new articles.
+  const cardableSince = new Date(Date.now() - CARD_MAX_AGE_HOURS * 3600_000);
 
   return db
     .select({ id: events.id, score: sql<number>`1 - (${distance})` })
     .from(events)
-    .where(and(inArray(events.status, ["collecting", "published"]), gte(events.lastArticleAt, since)))
+    .where(
+      and(
+        gte(events.lastArticleAt, since),
+        or(eq(events.status, "published"), and(eq(events.status, "collecting"), gte(events.firstSeenAt, cardableSince))),
+      ),
+    )
     .orderBy(distance)
     .limit(EVENT_CANDIDATES);
 }

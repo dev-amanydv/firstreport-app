@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { articles, asc, eq, events, sources, type Database } from "@fr/db";
-import { EVENT_BORDER_LOW, EVENT_JOIN } from "@fr/shared";
+import { CARD_MAX_AGE_HOURS, EVENT_BORDER_LOW, EVENT_JOIN } from "@fr/shared";
 import type { Gemini } from "../src/gemini/client.js";
 import { assignArticles } from "../src/pipeline/assignEvents.js";
 import { embedArticles } from "../src/pipeline/embed.js";
@@ -157,6 +157,20 @@ describe("event assignment", () => {
 
     expect(counts).toMatchObject({ deferred: 0, created: 1 });
     expect(await eventOf(waiting)).not.toBe(bridgeEvent);
+  });
+
+  it("does not join a collecting event that is too old to get a card", async () => {
+    const stale = await addArticle(2, "Old flood report", vector({ 9: 1 }));
+    await assignArticles(db, gemini);
+    const staleEvent = await eventOf(stale);
+    await db
+      .update(events)
+      .set({ firstSeenAt: new Date(Date.now() - (CARD_MAX_AGE_HOURS + 1) * 3600_000) })
+      .where(eq(events.id, staleEvent));
+
+    const fresh = await addArticle(1, "Flood waters rise", vector({ 9: 1 }));
+    expect(await assignArticles(db, gemini)).toMatchObject({ created: 1, joined: 0 });
+    expect(await eventOf(fresh)).not.toBe(staleEvent);
   });
 
   it("does nothing when run again", async () => {
