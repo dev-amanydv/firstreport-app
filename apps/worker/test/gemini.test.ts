@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { llmCalls, sql, type Database } from "@fr/db";
-import { createGemini, spentToday, type GeminiModels } from "../src/gemini/client.js";
+import { createGemini, DailyQuotaReached, spentToday, type GeminiModels } from "../src/gemini/client.js";
 import { openTestDb } from "./testDb.js";
 
 vi.mock("node:timers/promises", () => ({ setTimeout: async () => {} }));
@@ -90,5 +90,27 @@ describe("gemini wrapper", () => {
 
     await createGemini(database.db, models).embed(["text"]);
     expect(models.embedContent).toHaveBeenCalledTimes(2);
+  });
+
+  it("stops before calling Gemini once today's request cap for the model is used", async () => {
+    const models = fakeModels();
+    models.generateContent.mockResolvedValue({ text: '{"same": false}' });
+    const gemini = createGemini(database.db, models, { dailyRequestCaps: { "gemini-3.1-flash-lite": 2 } });
+
+    await gemini.askJson("same_event", "prompt", {});
+    await gemini.askJson("same_event", "prompt", {});
+    await expect(gemini.askJson("same_event", "prompt", {})).rejects.toBeInstanceOf(DailyQuotaReached);
+
+    expect(models.generateContent).toHaveBeenCalledTimes(2);
+    expect(await database.db.select().from(llmCalls)).toHaveLength(2);
+  });
+
+  it("does not cap models without a configured limit", async () => {
+    const models = fakeModels();
+    models.generateContent.mockResolvedValue({ text: '{"same": false}' });
+    const gemini = createGemini(database.db, models, { dailyRequestCaps: { "other-model": 0 } });
+
+    await gemini.askJson("same_event", "prompt", {});
+    expect(models.generateContent).toHaveBeenCalledTimes(1);
   });
 });

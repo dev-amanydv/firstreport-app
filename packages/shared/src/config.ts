@@ -38,6 +38,12 @@ export const MODEL_PRICES: Record<string, { inputPerMillion: number; outputPerMi
   "gemini-3.1-flash-lite": { inputPerMillion: 0.25, outputPerMillion: 1.5 },
 };
 
+// Dev runs on the Gemini free tier (GEMINI_FREE_TIER=true). Google shows the real limits only in AI Studio;
+// these are guesses kept ~10% under ~500 requests/day.
+export const FREE_TIER_DAILY_REQUESTS: Record<string, number> = {
+  "gemini-3.1-flash-lite": 450,
+};
+
 export const GEMINI_MAX_RETRIES = 5;
 export const GEMINI_BASE_DELAY_MS = 2_000;
 export const GEMINI_MAX_DELAY_MS = 65_000;
@@ -56,5 +62,5 @@ export const LABEL_BAND_WIDTH = 0.05;
 export const LABEL_TARGET_PRECISION = 0.95;
 export const LABEL_TARGET_RECALL = 0.95;
 
-export const MAX_NEW_ARTICLES_PER_DAY = 500;
+export const MAX_NEW_ARTICLES_PER_DAY = 250;
 export const EVENT_ASK_MAX_WAIT_HOURS = 2;

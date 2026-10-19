@@ -1,8 +1,9 @@
 import { setTimeout as sleep } from "node:timers/promises";
 import { GoogleGenAI } from "@google/genai";
-import { gte, llmCalls, startOfToday, sql, type Db } from "@fr/db";
+import { and, count, eq, gte, llmCalls, startOfToday, sql, type Db } from "@fr/db";
 import {
   EMBED_MODEL,
+  FREE_TIER_DAILY_REQUESTS,
   EMBED_TASK_PREFIX,
   EMBEDDING_DIMENSIONS,
   GEMINI_BASE_DELAY_MS,
@@ -18,6 +19,13 @@ export type LlmPurpose = (typeof llmCalls.$inferInsert)["purpose"];
 export type Gemini = ReturnType<typeof createGemini>;
 
 type CallResult<T> = { result: T; inputTokens: number; outputTokens: number };
+type GeminiOptions = { dailyRequestCaps?: Record<string, number> };
+
+export class DailyQuotaReached extends Error {
+  constructor(model: string, cap: number) {
+    super(`daily request cap of ${cap} reached for ${model}`);
+  }
+}
 
 function errorStatus(error: unknown) {
   return (error as { status?: number }).status;
@@ -42,12 +50,23 @@ function quotaGoneForNow(error: unknown) {
   return (retryHintMs(error) ?? 0) > GEMINI_MAX_DELAY_MS;
 }
 
-export function createGemini(db: Db, models: GeminiModels) {
+export function createGemini(db: Db, models: GeminiModels, { dailyRequestCaps = {} }: GeminiOptions = {}) {
   async function logCall(row: typeof llmCalls.$inferInsert) {
     await db.insert(llmCalls).values(row);
   }
 
+  async function checkDailyCap(model: string) {
+    const cap = dailyRequestCaps[model];
+    if (cap === undefined) return;
+    const [row] = await db
+      .select({ requests: count() })
+      .from(llmCalls)
+      .where(and(eq(llmCalls.model, model), gte(llmCalls.createdAt, startOfToday())));
+    if ((row?.requests ?? 0) >= cap) throw new DailyQuotaReached(model, cap);
+  }
+
   async function call<T>(purpose: LlmPurpose, model: string, run: () => Promise<CallResult<T>>) {
+    await checkDailyCap(model);
     for (let attempt = 1; ; attempt++) {
       const startedAt = Date.now();
       try {
@@ -88,10 +107,10 @@ export function createGemini(db: Db, models: GeminiModels) {
     });
   }
 
-  function askJson(purpose: LlmPurpose, prompt: string, schema: object) {
-    return call(purpose, TEXT_MODEL, async () => {
+  function askJson(purpose: LlmPurpose, prompt: string, schema: object, model = TEXT_MODEL) {
+    return call(purpose, model, async () => {
       const response = await models.generateContent({
-        model: TEXT_MODEL,
+        model,
         contents: prompt,
         config: {
           temperature: 0,
@@ -123,5 +142,9 @@ export async function spentToday(db: Db) {
 
 export function geminiFromEnv(db: Db) {
   const apiKey = process.env.GEMINI_API_KEY;
-  return apiKey ? createGemini(db, new GoogleGenAI({ apiKey }).models) : null;
+  if (!apiKey) return null;
+  const freeTier = process.env.GEMINI_FREE_TIER !== "false";
+  return createGemini(db, new GoogleGenAI({ apiKey }).models, {
+    dailyRequestCaps: freeTier ? FREE_TIER_DAILY_REQUESTS : {},
+  });
 }
