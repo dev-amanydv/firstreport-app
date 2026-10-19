@@ -72,3 +72,12 @@ export const HEADLINE_MAX_WORDS = 12;
 export const CARD_LEDE_MAX_CHARS = 1_000;
 export const CARDS_PER_TICK = 40;
 export const CARD_MAX_AGE_HOURS = 24;
+
+// Starting values for gemini-embedding-2 Event centroids; tune with pnpm label:pairs --events.
+export const STORY_JOIN = 0.9;
+export const STORY_BORDER_LOW = 0.85;
+export const STORY_WINDOW_DAYS = 30;
+export const STORY_RECENT_EVENTS = 3;
+export const STORY_CANDIDATES = 3;
+export const STORY_LABEL_PAIR_COUNT = 100;
+export const STORY_LABEL_MIN_SCORE = 0.8;
