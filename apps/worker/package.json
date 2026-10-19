@@ -9,7 +9,8 @@
     "test": "vitest run",
     "label:pairs": "tsx --env-file-if-exists=../../.env src/cli/labelPairs.ts",
     "label:report": "tsx src/cli/labelReport.ts",
-    "events:reset": "tsx --env-file-if-exists=../../.env src/cli/resetEvents.ts"
+    "events:reset": "tsx --env-file-if-exists=../../.env src/cli/resetEvents.ts",
+    "cards:report": "tsx --env-file-if-exists=../../.env src/cli/cardReport.ts"
   },
   "devDependencies": {
     "@types/jsdom": "^30.0.0",

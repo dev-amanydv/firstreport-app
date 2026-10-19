@@ -16,6 +16,7 @@
     "test": "pnpm -r test",
     "label:pairs": "pnpm --filter @fr/worker label:pairs",
     "label:report": "pnpm --filter @fr/worker label:report",
-    "events:reset": "pnpm --filter @fr/worker events:reset"
+    "events:reset": "pnpm --filter @fr/worker events:reset",
+    "cards:report": "pnpm --filter @fr/worker cards:report"
   }
 }
