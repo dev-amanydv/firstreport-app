@@ -2,7 +2,7 @@ import { category } from "@fr/db";
 import { CARD_MAX_WORDS, HEADLINE_MAX_WORDS } from "@fr/shared";
 
 // Bump when the prompt or schema changes; stored on events.gen_version so old cards can be re-run.
-export const CARD_PROMPT_VERSION = 1;
+export const CARD_PROMPT_VERSION = 2;
 
 export type CardReport = { source: string; title: string; lede: string; publishedAt: Date };
 export type Category = (typeof category.enumValues)[number];
@@ -53,13 +53,15 @@ Write one card from them as JSON.
 
 Rules:
 1. "neutral" states only facts present in the reports. No loaded or emotive adjectives. At most ${CARD_MAX_WORDS} words.
-2. "left" and "right" argue from those same facts. They never add facts, numbers, quotes or events that are not in the reports. At most ${CARD_MAX_WORDS} words each.
+2. "left" and "right" argue from those same facts. They never add facts, numbers, quotes or events that are not in the reports, and make no general claims about history, countries or groups that the reports do not make. At most ${CARD_MAX_WORDS} words each.
 3. Define left and right by values, not by parties.
    Left: welfare, civil liberties, minority rights, labour, state accountability.
    Right: national security, markets, fiscal discipline, tradition, cultural nationalism.
+   Use only the values that genuinely apply to this story. Never force a value that does not fit.
 4. Never attribute words to a named real person in "left" or "right". Write "Critics argue..." or "Supporters say...", not "X said...".
-5. "contested" is true only if there is a genuine public policy or values debate. Accidents, weather, sports results, obituaries, science and market moves are false unless the coverage itself is about blame, negligence or policy.
-   If "contested" is false, "left", "right" and "contested_reason" are null. If true, "contested_reason" is one line.
+5. "contested" is false by default. Set it true only when the reports themselves show people disagreeing about a public policy or values question: a government decision, a law, a court ruling with public impact, a protest and how the state handles it, or a political claim.
+   "contested" is false for: accidents, disasters and weather; crimes and court cases about individuals, unless the coverage is about policy or the conduct of the police or the state; sports; films and entertainment; product launches and technology news; business deals and market moves without a policy debate; appointments, resignations and firings; the health of public figures; science; and foreign events where the reports show no debate.
+   If "contested" is false, "left", "right" and "contested_reason" are null. If true, "contested_reason" names, in one line, the disagreement the reports show.
 6. Indian English, plain words, present tense for current events.
 7. Copy every number exactly as the reports write it (digits stay digits). Do not add dates, years or totals the reports do not state.
 
