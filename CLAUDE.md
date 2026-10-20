@@ -4,6 +4,18 @@ You are the engineering partner on **FirstReport**, a mobile-first Indian news a
 
 ---
 
+## 0\. Current status (keep this section up to date)
+
+- **Done:** M1 (ingest), M2 (embeddings + Events, thresholds tuned from labelled data), M3 (cards, prompt v2), M4 (Stories, summaries, material-change rewrites, budget brake, nightly job). Only `apps/worker`, `packages/db` and `packages/shared` exist so far.
+- **Next:** M5, API + admin (`apps/api` does not exist yet). Post the plan first and wait for a go-ahead.
+- **Still open from M4:** the nightly `pg_dump` → R2 upload and the alert webhook are deferred to M7. Alerts are only logged (`ALERT:` lines) for now.
+- **Dev runs on the Gemini free tier** (`GEMINI_FREE_TIER`, on unless set to `false`). That is why the code has daily request caps, a daily article cap and fewer seeded feeds. Production sets `GEMINI_FREE_TIER=false`. See §6, "Free-tier and cost guards".
+- Where the code differs from the original brief, the brief below has been updated to match the code. The reasons are in the commit messages.
+
+See `README.md` for setup, commands and the repo layout.
+
+---
+
 ## 1\. What the product does
 
 FirstReport shows news as full-screen cards:
@@ -69,7 +81,8 @@ FirstReport shows news as full-screen cards:
 - **Jobs:** `pg-boss` (Postgres-backed queue and cron). The 15-minute tick must never overlap itself: use a singleton job or a Postgres advisory lock.  
 - **RSS:** `rss-parser`, with conditional GET (send `If-None-Match` / `If-Modified-Since`, honour 304).  
 - **Article text:** `@mozilla/readability` \+ `jsdom`, only when the RSS text is thin.  
-- **Gemini:** the official `@google/genai` SDK. Use structured JSON output (`responseSchema`). Keep all model IDs in config; **check the current model names in Google's docs** before hard-coding. Starting values: embeddings `gemini-embedding-001` (outputDimensionality 768, taskType `SEMANTIC_SIMILARITY`); text `gemini-2.5-flash-lite`, with `gemini-2.5-flash` as an optional card model. If a 2.5 Flash model with "thinking" is used, set the thinking budget to 0\.  
+- **Gemini:** the official `@google/genai` SDK. Use structured JSON output (`responseJsonSchema`, temperature 0, thinking budget 0). Keep all model IDs in config; **check the current model names in Google's docs** before hard-coding. Current values: embeddings `gemini-embedding-2` (outputDimensionality 768; it takes no `taskType`, so the task goes in a text prefix, `EMBED_TASK_PREFIX` = `"task: sentence similarity | query: "`); text and cards `gemini-3.1-flash-lite` (`TEXT_MODEL`, `CARD_MODEL`). Prices for `cost_usd` are in `MODEL_PRICES`.  
+- **Runtime:** Node ≥ 24, pnpm 12, scripts run with `tsx`. Each app loads the root `.env` with `--env-file-if-exists`.  
 - **API:** Fastify \+ zod validation. Responses are cacheable (`Cache-Control: public, s-maxage=60`) so Cloudflare can absorb traffic.  
 - **Mobile:** Expo, expo-router, TanStack Query, `react-native-pager-view` (vertical feed), `react-native-gesture-handler` \+ `react-native-reanimated` (horizontal perspective swipe), `expo-image` (cached hotlinked images with fallback).  
 - **Testing:** Vitest. Saved RSS/HTML fixtures, so the pipeline can be replayed offline without network or Gemini cost (mock the Gemini client).  
@@ -100,7 +113,11 @@ FirstReport shows news as full-screen cards:
 
 ## 5\. Data model (drizzle schema in `packages/db`)
 
-All ids are `uuid` or prefixed text ids (your choice; be consistent). `sources` — filled by the developer (seed script / admin); lightly updated by the worker
+All ids are `uuid` (`defaultRandom()`). Migrations live in `packages/db/migrations` (`0000_enable_pgvector.sql`, `0001_init.sql`); change the schema with `pnpm db:generate`, never by hand-editing applied migrations.
+
+### `sources` — filled by the developer (seed script / admin); lightly updated by the worker
+
+`name` is unique (the seed upserts on it). The seed (`packages/db/src/seed.ts`) has 12 active outlets with real feed URLs and 13 inactive candidates with `TODO` URLs. Some feeds are left out by default to stay within the free tier; `pnpm db:seed --all-feeds` adds them back.
 
 | Field | Type | Notes |
 | :---- | :---- | :---- |
@@ -110,7 +127,7 @@ All ids are `uuid` or prefixed text ids (your choice; be consistent). `sources` 
 | rss\_urls | text\[\] | one or more section feeds |
 | active | bool | default true |
 | lean | text null | unused in v1, kept for future grounded perspectives |
-| etag, last\_modified | text null | per feed URL; store as jsonb keyed by URL if needed |
+| feed\_state | jsonb | `{ [feedUrl]: { etag, lastModified } }`, for conditional GET per feed URL |
 | last\_fetched\_at | timestamptz | updated every tick |
 | last\_new\_item\_at | timestamptz | updated when new items arrive; alert if \> 24 h old |
 
@@ -173,7 +190,7 @@ Unique constraints: `(source_id, canonical_url)`, `(source_id, guid)` where guid
 
 ### `story_summaries` — append-only, created in step 11
 
-`id, story_id, as_of_event_id, summary (~120 words), created_at`. One row each time an Event joins a Story that already had ≥ 1 Event. Never updated.
+`id, story_id, as_of_event_id (unique), summary (~120 words), created_at`. One row each time an Event joins a Story that already had ≥ 1 Event. Never updated.
 
 ### `llm_calls` — append-only, one row per Gemini call
 
@@ -191,18 +208,18 @@ Unique constraints: `(source_id, canonical_url)`, `(source_id, guid)` where guid
 
 One **tick** every 15 minutes (cron `*/15 * * * *` via pg-boss, non-overlapping). Each step logs counts. Every Gemini call goes through one wrapper that retries with exponential backoff on 429/5xx, writes an `llm_calls` row, and enforces the daily budget.
 
-1. **Fetch.** For each active source and feed URL, make a conditional GET. Parse items. Skip items matching filter patterns (URL contains `/live/`, `live-updates`, `/opinion/`, `/editorial/`, `/blogs/`; titles like "Top 10", "Morning brief", "Horoscope"; patterns live in config). Insert as `articles` with status `new`.  
+1. **Fetch.** For each active source and feed URL, make a conditional GET. Parse items. Skip items matching filter patterns (URL contains `/live/`, `live-updates`, `/opinion/`, `/editorial/`, `/blogs/`; titles like "Top 10", "Morning brief", "Horoscope", "Gold rate today", "Daily quiz"; patterns live in config). Dedupe items across a source's feeds first, so one headline wins when an outlet lists the same article in several section feeds. Insert as `articles` with status `new`, stopping once `MAX_NEW_ARTICLES_PER_DAY` (250) articles have been inserted today (IST day).  
 2. **Dedupe by address.** Normalise the URL: lowercase host, drop `utm_*`/`fbclid`/`gclid`/`ref` params, `/amp` suffixes, `amp.`/`m.` subdomains, trailing slash, fragment. Unique constraints drop repeats.  
 3. **Extract \+ hash.** If the RSS text is \< 60 words, fetch the page (polite: ≤ 1 request every 3 s per domain, real User-Agent, respect robots.txt) and run Readability. Set `lede` (first \~2 paragraphs, max \~120 words) and `content_hash`. A duplicate hash for the same source is dropped.  
 4. **Embed.** Batch-embed `title + "\n" + lede` for new articles (up to 100 per request). Normalise and store.  
-5. **Same-site near-duplicate.** If cosine ≥ `NEAR_DUP_SAME_SOURCE` (0.95) with an article from the **same source** in the last 72 h, treat it as an edit of that article: update the old row in place, delete the new one, flag the Event `needs_recheck`.  
-6. **Assign to Events — sequentially, ordered by `published_at`.** For each article, get the top 3 candidate Events by centroid cosine (72 h window, status in `collecting`/`published`).  
-   - best ≥ `EVENT_JOIN` (0.85): join it  
-   - `EVENT_BORDER_LOW` (0.75) ≤ best \< 0.85: ask Gemini Flash-Lite "same real-world event? yes/no" with both titles \+ ledes. Yes → join; no → new Event  
-   - best \< 0.75: create a new Event (`collecting`, centroid \= this embedding)  
+5. **Same-site near-duplicate.** If cosine ≥ `NEAR_DUP_SAME_SOURCE` (0.97) with an article from the **same source** in the last 72 h, treat it as an edit of that article: update the old row in place, delete the new one, flag the Event `needs_recheck`.  
+6. **Assign to Events — sequentially, ordered by `published_at`.** For each article, get the top 3 candidate Events by centroid cosine (72 h window, status in `collecting`/`published`; a `collecting` Event older than `CARD_MAX_AGE_HOURS` is excluded, because it will never be published). Thresholds were tuned for `gemini-embedding-2` from 242 labelled pairs (unrelated news scores 0.60–0.75 with this model):  
+   - best ≥ `EVENT_JOIN` (0.94): join it  
+   - `EVENT_BORDER_LOW` (0.86) ≤ best \< 0.94: ask Gemini Flash-Lite "same real-world event? yes/no" with both titles \+ ledes. Yes → join; no → new Event. If the Gemini call fails, the article stays `new` and is retried on a later tick; after `EVENT_ASK_MAX_WAIT_HOURS` (2 h) it becomes its own Event  
+   - best \< 0.86: create a new Event (`collecting`, centroid \= this embedding)  
    - On join: recompute the centroid, bump `article_count` and `last_article_at`; if the Event is already `published`, set `needs_recheck = true`.  
-7. **Wait one tick.** Only Events with status `collecting` **created before this tick started** move on to step 8\. This lets sibling articles arrive, so cards are written from several sources.  
-8. **Write the card.** One Gemini call per Event. Input: ledes of up to 5 member articles, preferring different sources, \~2–3k tokens. Output JSON:  
+7. **Wait one tick.** Only Events with status `collecting` **created before this tick started** move on to step 8\. This lets sibling articles arrive, so cards are written from several sources. At most `CARDS_PER_TICK` (40) per tick; Events whose `first_seen_at` is older than `CARD_MAX_AGE_HOURS` (24 h) are never carded or served.  
+8. **Write the card.** One Gemini call per Event. Input: ledes of up to 5 member articles, one per source first, each capped at `CARD_LEDE_MAX_CHARS`. A Gemini error or the free-tier cap stops the step and leaves the rest `collecting` for the next tick. Output JSON:  
      
    {  
      
@@ -234,24 +251,35 @@ One **tick** every 15 minutes (cron `*/15 * * * *` via pg-boss, non-overlapping)
    4. Never attribute words to a named real person ("Critics argue…", not "X said…").  
    5. `contested = true` only if there is a genuine public policy or values debate. Accidents, weather, sports results, obituaries, science and market moves are `false` unless the coverage itself is about blame, negligence or policy.  
    6. Indian English, plain words, present tense for current events.  
-2. **Validate in code.** Each text ≤ 60 words, headline ≤ 12 words. If `contested = false`, left and right must be null. Every number in `neutral` must appear in at least one source lede. On failure: retry once with a corrective instruction; if it fails again, mark the Event `failed` (it will show in admin). On success: set status `published`, `card_generated_at`, `gen_version`.  
-3. **Link to a Story** (newly published Events only). Candidates: `active` Stories with `last_event_at` in the last 30 days. Score \= max cosine between this Event's centroid and the centroids of that Story's **last 3 Events**. Shared entity \= case-insensitive overlap of `entities`.  
-   - score ≥ `STORY_JOIN` (0.80) **and** ≥ 1 shared entity: join  
-   - score ≥ `STORY_BORDER_LOW` (0.70), or ≥ 0.80 without a shared entity: Gemini yes/no "is this a new development of the same storyline?"  
+   7. Copy every number exactly as the reports write it. Add no dates, years or totals the reports do not state.  
+
+   The prompt is now **v2** (`CARD_PROMPT_VERSION = 2`): v1 marked 22 of 30 cards contested, so v2 makes `contested = false` the default, lists the kinds of news that are never contested, and tells each perspective to use only the values that fit the story and to make no claims the reports do not make. Bump the version on every prompt change.  
+9. **Validate in code.** Each text ≤ 60 words, headline ≤ 12 words. If `contested = false`, left and right must be null. Every number in `neutral` must appear in at least one source lede. On failure: retry once with a corrective instruction; if it fails again, mark the Event `failed` (it will show in admin). On success: set status `published`, `card_generated_at`, `gen_version`.  
+10. **Link to a Story** (newly published Events only, one at a time, so a later Event can join a Story created in the same tick). Candidates: `active` Stories with `last_event_at` in the last 30 days. Score \= max cosine between this Event's centroid and the centroids of that Story's **last 3 Events**. Shared entity \= case-insensitive overlap of `entities`. With `gemini-embedding-2` almost every Event pair scores above 0.70, so the brief's 0.80/0.70 were raised; the current values are starting points to tune with `pnpm label:pairs --events`:  
+   - score ≥ `STORY_JOIN` (0.90) **and** ≥ 1 shared entity: join  
+   - score ≥ `STORY_BORDER_LOW` (0.85), or ≥ 0.90 without a shared entity: Gemini yes/no "is this a new development of the same storyline?" If the call fails, the Event is retried on a later tick; after `EVENT_ASK_MAX_WAIT_HOURS` it starts its own Story  
    - otherwise: new Story (label from `story_label`, `event_count = 1`)  
    - On join: bump `event_count`, set `last_event_at`.  
-2. **Update the summary** (only when the Story now has ≥ 2 Events). Input: the previous summary (or, if none, the first Event's neutral text with its date) \+ the new Event's neutral text \+ date. Output: \~120-word chronological "story so far". Insert a `story_summaries` row with `as_of_event_id` \= the new Event.  
-3. **Material-change check.** For published Events with `needs_recheck = true`, `regen_count < 3` and `first_seen_at` within 24 h: a Flash-Lite call with the current neutral card \+ the new/edited ledes → `{ "material": bool, "new_facts": [] }`. If material: re-run steps 8–9 with the current member articles, `regen_count += 1`. Always clear `needs_recheck`.
+11. **Update the summary** (only when the Story now has ≥ 2 Events). Input: the previous summary (or, if none, the first Event's neutral text with its date) \+ the new Event's neutral text \+ date. Output: \~120-word chronological "story so far" (`SUMMARY_MAX_WORDS` 150; an over-long answer gets one retry). Insert a `story_summaries` row with `as_of_event_id` \= the new Event. A failure holds back the rest of that Story for the run; missing summaries are filled in order on later ticks.  
+12. **Material-change check.** For published Events with `needs_recheck = true`, `regen_count < 3` and `first_seen_at` within 24 h: a Flash-Lite call with the current neutral card \+ the new/edited ledes → `{ "material": bool, "new_facts": [] }`. If material: re-run steps 8–9 with the current member articles, `regen_count += 1`. Always clear `needs_recheck`.
 
-**Nightly job (02:30 IST):**
+The tick holds a Postgres advisory lock (`TICK_LOCK_ID`) as well as running as a pg-boss singleton job. A step that throws is logged and the tick moves on to the next step.
 
-- Merge twin Events: published/collecting Events from the last 48 h whose centroid cosine similarity is ≥ `EVENT_JOIN`. Keep the older one, move articles, recompute the centroid, set the loser to `merged` with `merged_into_id`, regenerate the survivor's card if needed.  
+**Nightly job (02:30 IST,** `apps/worker/src/nightly.ts`**):** it waits for a running tick by taking the same advisory lock, so merges never race Event assignment.
+
+- Merge twin Events: published/collecting Events from the last 48 h whose centroid cosine similarity is ≥ `EVENT_JOIN`. Keep the older one, **unless only one of the two is published: then the published one survives**. Move articles, recompute the centroid, set the loser to `merged` with `merged_into_id`, and recount the loser's Story. The survivor gets `needs_recheck`, so step 12 rewrites its card if the new articles matter. Best pairs go first, and each Event takes part in at most one merge per night.  
 - Null out `articles.body_text` older than 14 days.  
 - Mark Stories dormant after 30 days without an Event.  
-- Run `pg_dump` and upload to Cloudflare R2 (S3-compatible).  
-- Alert (log \+ optional email/Telegram webhook) for sources with `last_new_item_at` \> 24 h and for Events in `failed`.
+- *(M7, not built yet)* Run `pg_dump` and upload to Cloudflare R2 (S3-compatible).  
+- Alert for sources with `last_new_item_at` \> 24 h and for Events that failed in the last day. For now these are only logged as `ALERT:` lines; the email/Telegram webhook comes in M7.
 
-**Budget brake:** if today's `sum(llm_calls.cost_usd)` \> `DAILY_BUDGET_SOFT` (\$1.50), skip step 12\. If it is \> `DAILY_BUDGET_HARD` (\$3.00), also pause step 8 and alert.
+**Budget brake:** if today's (IST) `sum(llm_calls.cost_usd)` \> `DAILY_BUDGET_SOFT` (\$1.50), skip step 12\. If it is \> `DAILY_BUDGET_HARD` (\$3.00), also pause step 8 and alert. `cost_usd` is always computed at paid prices, including on the free tier.
+
+**Free-tier and cost guards (dev):** these are in the code and are not in the original brief.
+
+- `GEMINI_FREE_TIER` (on unless `"false"`): the wrapper refuses a call (`DailyQuotaReached`) once today's `llm_calls` count for a model reaches `FREE_TIER_DAILY_REQUESTS` (Flash-Lite: 450). Step 12 is also skipped once a model has used `FREE_TIER_SOFT_SHARE` (80%) of its cap.  
+- `MAX_NEW_ARTICLES_PER_DAY` (250) caps ingestion. The free tier embeds about 1,000 texts a day.  
+- The wrapper fails fast when Gemini's retry hint is longer than `GEMINI_MAX_DELAY_MS`, meaning the quota will not come back soon.
 
 All thresholds, windows, limits and model IDs live in **`packages/shared/src/config.ts`**, never inline. They are starting values and will be tuned on real data.
 
@@ -329,10 +357,10 @@ Provide `.env.example`. Never commit secrets.
 
 Work **one milestone at a time**. At the start of each, post a short plan (files, schema changes, tests) and wait for a go-ahead. At the end, give a summary and how to run it.
 
-1. **M1 — Repo \+ ingest (week 1).** Monorepo scaffold, Docker Compose (Postgres 16 \+ pgvector), Drizzle schema for all tables, a seed script for sources (the developer supplies the final RSS URLs; put candidate outlet names in the seed with `TODO` URLs and **do not invent feed URLs**), steps 1–3 with conditional GET, URL normalisation and hashing. A CLI `pnpm worker:tick --dry-run`. Tests for URL normalisation and dedupe. *Done when:* a tick ingests real feeds and re-running it adds 0 duplicates.  
-2. **M2 — Embeddings \+ Events (week 2).** The Gemini wrapper with `llm_calls` logging and backoff, steps 4–6, a labelling CLI (`pnpm label:pairs`) that shows 200 random article pairs from the 72 h window and records same/not-same to a CSV, and a script that reports precision/recall per threshold from that CSV. *Done when:* thresholds are chosen from labelled data.  
-3. **M3 — Cards (week 3).** Steps 7–9, prompt v1, validators with unit tests, and a script that generates 30 Events with both Flash-Lite and Flash into a side-by-side Markdown report. *Gate:* the developer would publish ≥ 27 of 30 as they stand.  
-4. **M4 — Stories \+ summaries \+ nightly (week 4).** Steps 10–12, the nightly job, the budget brake.  
+1. **M1 — Repo \+ ingest (week 1).** Monorepo scaffold, Docker Compose (Postgres 16 \+ pgvector), Drizzle schema for all tables, a seed script for sources (the developer supplies the final RSS URLs; put candidate outlet names in the seed with `TODO` URLs and **do not invent feed URLs**), steps 1–3 with conditional GET, URL normalisation and hashing. A CLI `pnpm worker:tick --dry-run`. Tests for URL normalisation and dedupe. *Done when:* a tick ingests real feeds and re-running it adds 0 duplicates. **✅ Done.**  
+2. **M2 — Embeddings \+ Events (week 2).** The Gemini wrapper with `llm_calls` logging and backoff, steps 4–6, a labelling CLI (`pnpm label:pairs`) that shows 200 random article pairs from the 72 h window and records same/not-same to a CSV, and a script that reports precision/recall per threshold from that CSV. *Done when:* thresholds are chosen from labelled data. **✅ Done.**  
+3. **M3 — Cards (week 3).** Steps 7–9, prompt v1, validators with unit tests, and a script that generates 30 Events into a Markdown report for review (`pnpm cards:report`; Flash-Lite only in dev, to stay inside the free tier; `--from <report.md>` re-runs the same Events to compare prompt versions). *Gate:* the developer would publish ≥ 27 of 30 as they stand. **✅ Done (prompt v2).**  
+4. **M4 — Stories \+ summaries \+ nightly (week 4).** Steps 10–12, the nightly job, the budget brake. **✅ Done** (R2 backup and alert webhook moved to M7).  
 5. **M5 — API \+ admin (week 5).** All endpoints, admin pages, cost page. *Gate:* the pipeline runs 7 days unattended at under \$1.50/day.  
 6. **M6 — Mobile app (weeks 6–7).** Every screen in §8.  
 7. **M7 — Hardening (week 8).** Sentry, alerts, R2 backups, source-silence alerts, privacy policy screen/link.  
@@ -352,5 +380,7 @@ Work **one milestone at a time**. At the start of each, post a short plan (files
 - Tests: unit tests for pure logic (normalisation, validators, threshold decisions, centroid math), and fixture-based replay tests for the pipeline with a mocked Gemini client. Do not call the real Gemini API in tests.  
 - Write clear commit messages, one logical change per commit, and ask before pushing.  
 - When anything in this brief is ambiguous, ask one short question rather than guessing on something hard to undo.
+- Tests that touch Postgres use a separate `fr_test` database (`TEST_DATABASE_URL`, created by `docker/init-test-db.sql`) and truncate it, and they run serially (`fileParallelism: false`). Never point them at the dev database.
+- When a milestone finishes or a settled value changes, update §0, the affected section here, and `README.md`.
 
-Start with **M1**: reply with your plan for it.
+The next milestone is **M5**: reply with your plan for it.
