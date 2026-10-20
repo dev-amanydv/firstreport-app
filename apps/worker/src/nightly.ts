@@ -1,6 +1,7 @@
 import { and, articles, eq, events, sql, stories, type Database, type Db } from "@fr/db";
 import {
   BODY_RETENTION_DAYS,
+  CARD_MAX_AGE_HOURS,
   EVENT_JOIN,
   MERGE_WINDOW_HOURS,
   SOURCE_SILENT_HOURS,
@@ -27,13 +28,16 @@ async function recountStory(tx: Parameters<Parameters<Db["transaction"]>[0]>[0],
 
 async function mergeTwins(db: Db) {
   const since = new Date(Date.now() - MERGE_WINDOW_HOURS * 3600_000).toISOString();
+  // A collecting Event past the card age limit will never be published, so it must not absorb a live twin.
+  const cardableSince = new Date(Date.now() - CARD_MAX_AGE_HOURS * 3600_000).toISOString();
   const rows = await db.execute<TwinPair>(sql`
     select
       json_build_object('id', a.id, 'firstSeenAt', a.first_seen_at, 'status', a.status, 'storyId', a.story_id) as a,
       json_build_object('id', b.id, 'firstSeenAt', b.first_seen_at, 'status', b.status, 'storyId', b.story_id) as b,
       1 - (a.centroid <=> b.centroid) as score
     from events a join events b on a.id < b.id
-    where a.status in ('collecting', 'published') and b.status in ('collecting', 'published')
+    where (a.status = 'published' or (a.status = 'collecting' and a.first_seen_at >= ${cardableSince}::timestamptz))
+      and (b.status = 'published' or (b.status = 'collecting' and b.first_seen_at >= ${cardableSince}::timestamptz))
       and a.first_seen_at >= ${since}::timestamptz and b.first_seen_at >= ${since}::timestamptz
       and 1 - (a.centroid <=> b.centroid) >= ${EVENT_JOIN}
     order by score desc

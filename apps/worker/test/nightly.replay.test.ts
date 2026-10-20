@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { articles, eq, events, sources, sql, stories, type Database } from "@fr/db";
-import { BODY_RETENTION_DAYS, EVENT_JOIN, STORY_DORMANT_DAYS } from "@fr/shared";
+import { BODY_RETENTION_DAYS, CARD_MAX_AGE_HOURS, EVENT_JOIN, STORY_DORMANT_DAYS } from "@fr/shared";
 import { pickSurvivor, runNightly } from "../src/nightly.js";
 import { normalize } from "../src/vector.js";
 import { openTestDb } from "./testDb.js";
@@ -99,6 +99,14 @@ describe("runNightly", () => {
     await addEvent(base, 60);
     await addEvent(twin, 55);
     expect(await runNightly(database)).toMatchObject({ mergedTwins: 0 });
+  });
+
+  it("does not merge a live Event into a collecting Event past the card age limit", async () => {
+    const stale = await addEvent(base, CARD_MAX_AGE_HOURS + 2, "collecting");
+    const fresh = await addEvent(twin, 1, "collecting");
+    expect(await runNightly(database)).toMatchObject({ mergedTwins: 0 });
+    expect((await eventRow(stale)).status).toBe("collecting");
+    expect((await eventRow(fresh)).status).toBe("collecting");
   });
 
   it("purges old article bodies and marks quiet Stories dormant", async () => {
