@@ -3,3 +3,8 @@ packages:
   - packages/*
 allowBuilds:
   esbuild: true
+# drizzle-kit loads drizzle-orm at runtime but does not declare it, so pnpm hides it.
+packageExtensions:
+  drizzle-kit:
+    peerDependencies:
+      drizzle-orm: "*"

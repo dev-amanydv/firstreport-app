@@ -67,6 +67,7 @@ pnpm db:seed                  # 12 active outlets + inactive TODO candidates
 | `pnpm test` | Vitest (needs the compose Postgres for the `fr_test` database) |
 | `pnpm typecheck` | `tsc` across all packages |
 | `pnpm db:generate` | Generate a migration after editing `packages/db/src/schema.ts` |
+| `pnpm db:studio` | Browse and edit the dev database in Drizzle Studio (https://local.drizzle.studio) |
 
 Without `GEMINI_API_KEY`, a tick only ingests and skips every Gemini step.
 

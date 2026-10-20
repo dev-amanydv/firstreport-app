@@ -10,6 +10,7 @@
     "db:generate": "pnpm --filter @fr/db generate",
     "db:migrate": "pnpm --filter @fr/db migrate",
     "db:seed": "pnpm --filter @fr/db seed",
+    "db:studio": "pnpm --filter @fr/db studio",
     "worker:tick": "pnpm --filter @fr/worker tick",
     "worker:start": "pnpm --filter @fr/worker start",
     "typecheck": "pnpm -r typecheck",
