@@ -8,6 +8,7 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
 COPY packages/db/package.json packages/db/
 COPY packages/shared/package.json packages/shared/
 COPY apps/worker/package.json apps/worker/
+COPY apps/api/package.json apps/api/
 RUN pnpm install --frozen-lockfile
 
 COPY . .

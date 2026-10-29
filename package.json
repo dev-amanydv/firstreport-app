@@ -14,11 +14,12 @@
     "worker:tick": "pnpm --filter @fr/worker tick",
     "worker:start": "pnpm --filter @fr/worker start",
     "typecheck": "pnpm -r typecheck",
-    "test": "pnpm -r test",
+    "test": "pnpm -r --workspace-concurrency=1 test",
     "label:pairs": "pnpm --filter @fr/worker label:pairs",
     "label:report": "pnpm --filter @fr/worker label:report",
     "events:reset": "pnpm --filter @fr/worker events:reset",
     "cards:report": "pnpm --filter @fr/worker cards:report",
-    "worker:nightly": "pnpm --filter @fr/worker nightly"
+    "worker:nightly": "pnpm --filter @fr/worker nightly",
+    "api:start": "pnpm --filter @fr/api start"
   }
 }

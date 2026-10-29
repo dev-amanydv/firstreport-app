@@ -1,0 +1,24 @@
+{
+  "name": "@fr/api",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "tsx --env-file-if-exists=../../.env src/start.ts",
+    "typecheck": "tsc -p .",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@types/node": "^24.19.2",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.5"
+  },
+  "dependencies": {
+    "@fr/db": "workspace:*",
+    "@fr/shared": "workspace:*",
+    "@fastify/formbody": "^9.0.1",
+    "fastify": "^5.12.7",
+    "pg-boss": "^12.38.0",
+    "zod": "^4.6.7"
+  }
+}
