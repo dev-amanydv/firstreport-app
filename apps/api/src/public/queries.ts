@@ -1,5 +1,5 @@
 import { and, articles, asc, desc, eq, events, sql, sources, stories, storySummaries, type Db } from "@fr/db";
-import { CARD_MAX_SOURCES, FEED_BOOST_MAX_ARTICLES, FEED_BOOST_MINUTES, type CardPayload, type Category } from "@fr/shared";
+import { CARD_MAX_SOURCES, FEED_BOOST_MAX_ARTICLES, FEED_BOOST_MINUTES, FEED_PROGRESS_WINDOW_HOURS, type CardPayload, type Category } from "@fr/shared";
 
 // Newest first, with a small boost for Events that many outlets cover.
 const sortKey = sql`(${events.firstSeenAt} + least(${events.articleCount}, ${FEED_BOOST_MAX_ARTICLES}::int) * (${FEED_BOOST_MINUTES}::int * interval '1 minute'))`;
@@ -58,7 +58,24 @@ async function sourcesFor(db: Db, eventIds: string[]) {
   return bySource;
 }
 
-function toCard(row: CardRow, cardSources: { name: string; url: string }[]): CardPayload {
+// The outlet of the earliest member article whose image the Event uses.
+async function imageCreditsFor(db: Db, eventIds: string[]) {
+  const credits = new Map<string, string>();
+  if (!eventIds.length) return credits;
+
+  const rows = await db.execute<{ event_id: string; name: string }>(sql`
+    select distinct on (e.id) e.id as event_id, s.name
+    from ${events} e
+    join ${articles} a on a.event_id = e.id and a.image_url = e.image_url
+    join ${sources} s on s.id = a.source_id
+    where e.id in ${eventIds}
+    order by e.id, a.published_at
+  `);
+  for (const row of rows) credits.set(row.event_id, row.name);
+  return credits;
+}
+
+function toCard(row: CardRow, cardSources: { name: string; url: string }[], imageCredit: string | null): CardPayload {
   const contested = row.contested ?? false;
   return {
     id: row.id,
@@ -66,6 +83,7 @@ function toCard(row: CardRow, cardSources: { name: string; url: string }[]): Car
     category: row.category ?? "other",
     firstSeenAt: row.firstSeenAt.toISOString(),
     imageUrl: row.imageUrl,
+    imageCredit: row.imageUrl ? imageCredit : null,
     neutral: row.neutral ?? "",
     contested,
     left: contested ? row.leftText : null,
@@ -76,8 +94,9 @@ function toCard(row: CardRow, cardSources: { name: string; url: string }[]): Car
 }
 
 async function withSources(db: Db, rows: CardRow[]) {
-  const bySource = await sourcesFor(db, rows.map((row) => row.id));
-  return rows.map((row) => toCard(row, bySource.get(row.id) ?? []));
+  const ids = rows.map((row) => row.id);
+  const [bySource, credits] = await Promise.all([sourcesFor(db, ids), imageCreditsFor(db, ids)]);
+  return rows.map((row) => toCard(row, bySource.get(row.id) ?? [], credits.get(row.id) ?? null));
 }
 
 // The cursor carries the sort key as Postgres text, so no microseconds are lost in a JS Date.
@@ -113,11 +132,23 @@ export async function feed(db: Db, { category, cursor, limit }: { category?: Cat
     .orderBy(desc(sortKey), desc(events.id))
     .limit(limit + 1);
 
+  const [windowCount] = await db
+    .select({ total: sql<number>`count(*)::int` })
+    .from(events)
+    .where(
+      and(
+        eq(events.status, "published"),
+        category ? eq(events.category, category) : undefined,
+        sql`${events.firstSeenAt} > now() - ${FEED_PROGRESS_WINDOW_HOURS}::int * interval '1 hour'`,
+      ),
+    );
+
   const page = rows.slice(0, limit);
   const last = page.at(-1);
   return {
     items: await withSources(db, page),
     nextCursor: rows.length > limit && last ? encodeCursor({ key: last.sortKey, id: last.id }) : null,
+    windowTotal: windowCount?.total ?? 0,
   };
 }
 

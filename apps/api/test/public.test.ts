@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { sql, storySummaries, type Database } from "@fr/db";
+import { articles, eq, events, sql, storySummaries, type Database } from "@fr/db";
 import { openTestDb } from "@fr/db/testing";
-import { cardPayloadSchema, FEED_BOOST_MINUTES, feedSchema, PUBLIC_CACHE_SECONDS } from "@fr/shared";
+import { cardPayloadSchema, FEED_BOOST_MINUTES, FEED_PROGRESS_WINDOW_HOURS, feedSchema, PUBLIC_CACHE_SECONDS } from "@fr/shared";
 import { buildServer } from "../src/server.js";
 import { addEvent, addSource, addStory } from "./seed.js";
 
@@ -78,6 +78,20 @@ describe("GET /v1/feed", () => {
     expect(seen).toEqual(ids);
   });
 
+  it("counts the category's published Events from the progress window on every page", async () => {
+    await addEvent(db, { category: "sports", firstSeenAt: minutesAgo(10) });
+    await addEvent(db, { category: "sports", firstSeenAt: minutesAgo(20) });
+    await addEvent(db, { category: "sports", firstSeenAt: minutesAgo(FEED_PROGRESS_WINDOW_HOURS * 60 + 30) });
+    await addEvent(db, { category: "national", firstSeenAt: minutesAgo(5) });
+    await addEvent(db, { category: "sports", status: "hidden", firstSeenAt: minutesAgo(5) });
+
+    const first = feedSchema.parse((await get("/v1/feed?category=sports&limit=1")).json());
+    expect(first.windowTotal).toBe(2);
+    const second = feedSchema.parse((await get(`/v1/feed?category=sports&limit=1&cursor=${first.nextCursor}`)).json());
+    expect(second.windowTotal).toBe(2);
+    expect(feedSchema.parse((await get("/v1/feed")).json()).windowTotal).toBe(3);
+  });
+
   it("rejects a bad cursor, category or limit", async () => {
     expect((await get("/v1/feed?cursor=nonsense")).statusCode).toBe(400);
     expect((await get("/v1/feed?category=weather")).statusCode).toBe(400);
@@ -94,6 +108,21 @@ describe("GET /v1/events/:id", () => {
     expect(response.statusCode).toBe(200);
     const card = cardPayloadSchema.parse(response.json());
     expect(card).toMatchObject({ id: event.id, contested: false, left: null, right: null, story: { id: story.id, eventCount: 1 } });
+  });
+
+  it("credits the image to the outlet of the article it came from", async () => {
+    const [a, b] = [await addSource(db, "Alpha"), await addSource(db, "Beta")];
+    const event = await addEvent(db, {}, [a.id, b.id]);
+    const image = "https://img.test/photo.jpg";
+    const [fromBeta] = await db.select().from(articles).where(eq(articles.sourceId, b.id));
+    await db.update(articles).set({ imageUrl: image }).where(eq(articles.id, fromBeta!.id));
+    await db.update(events).set({ imageUrl: image }).where(eq(events.id, event.id));
+
+    const card = cardPayloadSchema.parse((await get(`/v1/events/${event.id}`)).json());
+    expect(card).toMatchObject({ imageUrl: image, imageCredit: "Beta" });
+
+    const bare = cardPayloadSchema.parse((await get(`/v1/events/${(await addEvent(db, {}, [a.id])).id}`)).json());
+    expect(bare).toMatchObject({ imageUrl: null, imageCredit: null });
   });
 
   it("404s for unpublished Events and redirects merged ones to the survivor", async () => {

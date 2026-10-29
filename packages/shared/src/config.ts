@@ -112,11 +112,22 @@ export const FEED_PAGE_MAX = 50;
 export const FEED_BOOST_MINUTES = 10;
 export const FEED_BOOST_MAX_ARTICLES = 5;
 export const CARD_MAX_SOURCES = 5;
+// The app's progress bar counts the category's cards from this window.
+export const FEED_PROGRESS_WINDOW_HOURS = 24;
 export const SHOW_AI_LABEL = false;
 export const MIN_APP_VERSION = "1.0.0";
 export const CATEGORY_LABELS = {
   national: "National & Politics",
   business: "Business & Economy",
+  technology: "Technology",
+  sports: "Sports",
+  entertainment: "Entertainment",
+  world: "World",
+} as const;
+// For the app's category strip and card meta line.
+export const CATEGORY_SHORT_LABELS = {
+  national: "National",
+  business: "Business",
   technology: "Technology",
   sports: "Sports",
   entertainment: "Entertainment",

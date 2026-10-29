@@ -11,6 +11,8 @@ export const cardPayloadSchema = z.object({
   category: categorySchema,
   firstSeenAt: z.iso.datetime({ offset: true }),
   imageUrl: z.string().nullable(),
+  // Name of the outlet the image comes from, for the photo credit.
+  imageCredit: z.string().nullable(),
   neutral: z.string(),
   contested: z.boolean(),
   left: z.string().nullable(),
@@ -20,7 +22,12 @@ export const cardPayloadSchema = z.object({
 });
 export type CardPayload = z.infer<typeof cardPayloadSchema>;
 
-export const feedSchema = z.object({ items: z.array(cardPayloadSchema), nextCursor: z.string().nullable() });
+export const feedSchema = z.object({
+  items: z.array(cardPayloadSchema),
+  nextCursor: z.string().nullable(),
+  // Published Events in this category from the last FEED_PROGRESS_WINDOW_HOURS, for the app's progress bar.
+  windowTotal: z.number().int(),
+});
 export type Feed = z.infer<typeof feedSchema>;
 
 export const timelineSchema = z.object({
