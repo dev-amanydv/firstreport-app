@@ -6,8 +6,8 @@ import {
   MERGE_WINDOW_HOURS,
   SOURCE_SILENT_HOURS,
   STORY_DORMANT_DAYS,
-  TICK_LOCK_ID,
 } from "@fr/shared";
+import { withTickLock } from "./lock.js";
 
 type Twin = { id: string; firstSeenAt: string; status: string; storyId: string | null };
 type TwinPair = { a: Twin; b: Twin; score: number };
@@ -99,17 +99,7 @@ async function runJobs(db: Db) {
   return result;
 }
 
-// Waits for a running tick to finish (same advisory lock), so merges never race Event assignment.
-export async function runNightly({ db, client }: Database) {
-  const connection = await client.reserve();
-  try {
-    await connection`select pg_advisory_lock(${TICK_LOCK_ID})`;
-    try {
-      return await runJobs(db);
-    } finally {
-      await connection`select pg_advisory_unlock(${TICK_LOCK_ID})`;
-    }
-  } finally {
-    connection.release();
-  }
+// Waits for a running tick to finish, so merges never race Event assignment.
+export async function runNightly(database: Database) {
+  return withTickLock(database, () => runJobs(database.db));
 }

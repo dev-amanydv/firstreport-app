@@ -1,31 +1,44 @@
 import { and, asc, eq, events, gte, lt, type Db } from "@fr/db";
 import { CARD_MAX_AGE_HOURS, CARD_MODEL, CARDS_PER_TICK } from "@fr/shared";
 import type { Gemini } from "../gemini/client.js";
-import { CARD_PROMPT_VERSION, cardPrompt, cardSchema, parseCard, retryPrompt, type Card, type CardReport } from "../prompts/card.js";
+import {
+  CARD_PROMPT_VERSION,
+  cardPrompt,
+  cardSchema,
+  FORCE_CONTESTED_NOTE,
+  parseCard,
+  retryPrompt,
+  type Card,
+  type CardReport,
+} from "../prompts/card.js";
 import { loadCardReports } from "./cardInput.js";
 import { validateCard } from "./validateCard.js";
 
 export type CardAttempt = { card: Card | null; errors: string[]; retried: boolean };
 
-function check(raw: unknown, sourceTexts: string[]) {
+function check(raw: unknown, sourceTexts: string[], forceContested: boolean) {
   try {
     const card = parseCard(raw);
-    return { card, errors: validateCard(card, sourceTexts) };
+    const errors = validateCard(card, sourceTexts);
+    if (forceContested && !card.contested) errors.push("contested must be true: an editor marked this story as a public debate");
+    return { card, errors };
   } catch (error) {
     return { card: null, errors: [error instanceof Error ? error.message : String(error)] };
   }
 }
 
 // One card call, and one corrective retry if the card fails validation. Gemini errors propagate.
-export async function generateCard(gemini: Gemini, reports: CardReport[]): Promise<CardAttempt> {
+// forceContested (admin flip) requires left/right perspectives.
+export async function generateCard(gemini: Gemini, reports: CardReport[], { forceContested = false } = {}): Promise<CardAttempt> {
   const sourceTexts = reports.flatMap((report) => [report.title, report.lede]);
+  const note = forceContested ? FORCE_CONTESTED_NOTE : undefined;
 
-  const first = await gemini.askJson("card", cardPrompt(reports), cardSchema, CARD_MODEL);
-  const checked = check(first, sourceTexts);
+  const first = await gemini.askJson("card", cardPrompt(reports, note), cardSchema, CARD_MODEL);
+  const checked = check(first, sourceTexts, forceContested);
   if (!checked.errors.length) return { ...checked, retried: false };
 
-  const second = await gemini.askJson("validate_retry", retryPrompt(reports, first, checked.errors), cardSchema, CARD_MODEL);
-  return { ...check(second, sourceTexts), retried: true };
+  const second = await gemini.askJson("validate_retry", retryPrompt(reports, first, checked.errors, note), cardSchema, CARD_MODEL);
+  return { ...check(second, sourceTexts, forceContested), retried: true };
 }
 
 export function cardFields(card: Card) {

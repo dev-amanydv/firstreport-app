@@ -99,3 +99,29 @@ export const MERGE_WINDOW_HOURS = 48;
 export const BODY_RETENTION_DAYS = 14;
 export const STORY_DORMANT_DAYS = 30;
 export const SOURCE_SILENT_HOURS = 24;
+
+// Admin "regenerate" and "flip to contested" are pg-boss jobs the worker runs, so the API never calls Gemini.
+export const REGEN_QUEUE = "regen";
+export const REGEN_EXPIRE_SECONDS = 15 * 60;
+
+export const API_PORT = 3000;
+export const PUBLIC_CACHE_SECONDS = 60;
+export const FEED_PAGE_DEFAULT = 20;
+export const FEED_PAGE_MAX = 50;
+// Feed sort key = first_seen_at + least(article_count, FEED_BOOST_MAX_ARTICLES) * FEED_BOOST_MINUTES.
+export const FEED_BOOST_MINUTES = 10;
+export const FEED_BOOST_MAX_ARTICLES = 5;
+export const CARD_MAX_SOURCES = 5;
+export const SHOW_AI_LABEL = false;
+export const MIN_APP_VERSION = "1.0.0";
+export const CATEGORY_LABELS = {
+  national: "National & Politics",
+  business: "Business & Economy",
+  technology: "Technology",
+  sports: "Sports",
+  entertainment: "Entertainment",
+  world: "World",
+} as const;
+
+export const ADMIN_PAGE_SIZE = 50;
+export const COST_PAGE_DAYS = 30;
