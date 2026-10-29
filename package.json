@@ -20,6 +20,7 @@
     "events:reset": "pnpm --filter @fr/worker events:reset",
     "cards:report": "pnpm --filter @fr/worker cards:report",
     "worker:nightly": "pnpm --filter @fr/worker nightly",
-    "api:start": "pnpm --filter @fr/api start"
+    "api:start": "pnpm --filter @fr/api start",
+    "mobile": "pnpm --filter @fr/mobile start"
   }
 }

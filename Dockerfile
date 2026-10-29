@@ -9,7 +9,9 @@ COPY packages/db/package.json packages/db/
 COPY packages/shared/package.json packages/shared/
 COPY apps/worker/package.json apps/worker/
 COPY apps/api/package.json apps/api/
-RUN pnpm install --frozen-lockfile
+# The lockfile lists the mobile app, so its manifest must be here; its dependencies are not installed.
+COPY apps/mobile/package.json apps/mobile/
+RUN pnpm install --frozen-lockfile --filter '!@fr/mobile'
 
 COPY . .
 ENV NODE_ENV=production

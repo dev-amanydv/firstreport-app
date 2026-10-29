@@ -4,3 +4,5 @@
 data
 coverage
 **/.DS_Store
+apps/mobile
+!apps/mobile/package.json

@@ -1,0 +1,37 @@
+{
+  "expo": {
+    "name": "FirstReport",
+    "slug": "firstreport",
+    "scheme": "firstreport",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "backgroundColor": "#E6E6E6",
+    "android": {
+      "package": "in.firstreport.app"
+    },
+    "ios": {
+      "bundleIdentifier": "in.firstreport.app",
+      "supportsTablet": false
+    },
+    "plugins": [
+      "expo-router",
+      "expo-status-bar",
+      "expo-font",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#E6E6E6",
+          "dark": {
+            "backgroundColor": "#0B0B0B"
+          }
+        }
+      ],
+      "expo-image",
+      "expo-web-browser"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}
