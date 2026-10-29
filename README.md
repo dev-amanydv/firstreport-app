@@ -71,6 +71,19 @@ pnpm db:seed                  # 12 active outlets + inactive TODO candidates
 
 Without `GEMINI_API_KEY`, a tick only ingests and skips every Gemini step.
 
+## Deploy (VPS)
+
+The `Dockerfile` builds one image for every app; `docker-compose.yml` picks the command. The app services sit behind the `app` profile, so a plain `docker compose up -d` in dev still starts only Postgres.
+
+```sh
+cp .env.example .env          # GEMINI_API_KEY, GEMINI_FREE_TIER=false, ADMIN_USER/ADMIN_PASSWORD
+docker compose --profile app up -d --build   # postgres → migrate (one-off) → worker
+docker compose --profile app run --rm migrate pnpm db:seed --all-feeds
+docker compose logs -f worker
+```
+
+Postgres listens on `127.0.0.1:5432` only. Compose overrides `DATABASE_URL` to point at the `postgres` service.
+
 ## How a tick works
 
 1. **Ingest:** conditional GET on every active feed, filtering, URL normalisation, Readability extraction when the RSS text is under 60 words, and a content hash. Unique constraints drop repeats.

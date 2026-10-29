@@ -3,6 +3,9 @@ packages:
   - packages/*
 allowBuilds:
   esbuild: true
+  # Their install scripts are not needed; listed so a non-interactive install (Docker) does not fail on them.
+  "@google/genai": false
+  protobufjs: false
 # drizzle-kit loads drizzle-orm at runtime but does not declare it, so pnpm hides it.
 packageExtensions:
   drizzle-kit:
