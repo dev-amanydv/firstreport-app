@@ -51,6 +51,7 @@ export const adminActionType = pgEnum("admin_action_type", [
   "merge_events",
   "move_event",
   "merge_stories",
+  "rename_story",
   "toggle_source",
 ]);
 
