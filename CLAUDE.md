@@ -6,9 +6,10 @@ You are the engineering partner on **FirstReport**, a mobile-first Indian news a
 
 ## 0\. Current status (keep this section up to date)
 
-- **Done:** M1 (ingest), M2 (embeddings + Events, thresholds tuned from labelled data), M3 (cards, prompt v2), M4 (Stories, summaries, material-change rewrites, budget brake, nightly job). Only `apps/worker`, `packages/db` and `packages/shared` exist so far.
-- **Next:** M5, API + admin (`apps/api` does not exist yet). Post the plan first and wait for a go-ahead.
+- **Done:** M1 (ingest), M2 (embeddings + Events, thresholds tuned from labelled data), M3 (cards, prompt v2), M4 (Stories, summaries, material-change rewrites, budget brake, nightly job). M5 is built (`apps/api`: public `/v1` API, admin, cost page), and the worker and API run under Docker Compose (`--profile app`).
+- **Next:** the M5 gate: run the pipeline 7 days unattended at under $1.50/day. Then M6 (mobile; `apps/mobile` does not exist yet). Post the plan first and wait for a go-ahead.
 - **Still open from M4:** the nightly `pg_dump` → R2 upload and the alert webhook are deferred to M7. Alerts are only logged (`ALERT:` lines) for now.
+- **Still yours:** the 13 `TODO` feed URLs in the seed.
 - **Dev runs on the Gemini free tier** (`GEMINI_FREE_TIER`, on unless set to `false`). That is why the code has daily request caps, a daily article cap and fewer seeded feeds. Production sets `GEMINI_FREE_TIER=false`. See §6, "Free-tier and cost guards".
 - Where the code differs from the original brief, the brief below has been updated to match the code. The reasons are in the commit messages.
 
@@ -57,7 +58,7 @@ FirstReport shows news as full-screen cards:
 | Users | No login. Anonymous device ID (only needed later for polls). |
 | Language | English only |
 | RAG | **None.** No LangChain, no vector DB service, no retrieval framework. Embeddings live in Postgres (pgvector) and are used only for grouping. Story history is a plain SQL query. |
-| Infra | One small VPS (2 vCPU / 4 GB) running Docker Compose: Postgres \+ worker \+ API. Cloudflare in front of the API. **No Redis, no Kubernetes, no queues besides pg-boss.** |
+| Infra | One small VPS (2 vCPU / 4 GB) running Docker Compose: Postgres \+ worker \+ API (`docker compose --profile app up -d`). Cloudflare in front of the API. **No Redis, no Kubernetes, no queues besides pg-boss.** |
 | Timeline | Play Store (Android) closed beta in \~8–10 weeks |
 | Admin | One minimal password-protected web admin served by the API |
 
@@ -113,7 +114,7 @@ FirstReport shows news as full-screen cards:
 
 ## 5\. Data model (drizzle schema in `packages/db`)
 
-All ids are `uuid` (`defaultRandom()`). Migrations live in `packages/db/migrations` (`0000_enable_pgvector.sql`, `0001_init.sql`); change the schema with `pnpm db:generate`, never by hand-editing applied migrations.
+All ids are `uuid` (`defaultRandom()`). Migrations live in `packages/db/migrations` (`0000_enable_pgvector.sql`, `0001_init.sql`, `0002_rename_story_action.sql`); change the schema with `pnpm db:generate`, never by hand-editing applied migrations.
 
 ### `sources` — filled by the developer (seed script / admin); lightly updated by the worker
 
@@ -198,7 +199,7 @@ Unique constraints: `(source_id, canonical_url)`, `(source_id, guid)` where guid
 
 ### `admin_actions` — append-only
 
-`id, action (hide | unhide | regen | flip_contested | merge_events | move_event | merge_stories | toggle_source), target_id, note, created_at`.
+`id, action (hide | unhide | regen | flip_contested | merge_events | move_event | merge_stories | rename_story | toggle_source), target_id, note, created_at`.
 
 **Indexes:** `events(status, first_seen_at desc)`, `events(category, first_seen_at desc)`, `events(story_id, first_seen_at)`, `events(last_article_at)`, `articles(source_id, published_at)`, `articles(event_id)`. No vector index needed at this scale (≤ \~5k rows per window). Revisit only if a query takes \> 50 ms.
 
@@ -290,7 +291,7 @@ All thresholds, windows, limits and model IDs live in **`packages/shared/src/con
 Public, read-only, cacheable:
 
 - `GET /v1/feed?category=&cursor=&limit=20`: published Events ordered by `first_seen_at` desc, with a small boost for multi-source Events (e.g. sort key \= `first_seen_at + least(article_count, 5) * 10 minutes`, configurable). Cursor-based pagination.  
-- `GET /v1/events/:id`: one card.  
+- `GET /v1/events/:id`: one card (published only). A merged Event answers 301 to its survivor.  
 - `GET /v1/stories/:id/timeline`: the Story's published Events, oldest first (id, headline, first\_seen\_at).  
 - `GET /v1/stories/:id/summary?asOf=:eventId`: the summary row for that Event; 404 if none.  
 - `GET /v1/categories`  
@@ -310,13 +311,15 @@ Card payload:
 
 }
 
-Admin (server-rendered HTML, HTTP basic auth via `ADMIN_USER`/`ADMIN_PASSWORD`, never cached):
+Admin (server-rendered HTML, HTTP basic auth via `ADMIN_USER`/`ADMIN_PASSWORD`, never cached; POSTs must come from the admin's own origin, because basic auth alone is open to cross-site posts):
 
 - Recent Events list with status/category filters. Event detail page: member articles, card texts, and buttons for hide/unhide, regenerate, flip contested, move to Story, merge into another Event.  
 - Stories: merge two Stories, rename the label.  
 - Sources: toggle active, see `last_new_item_at`.  
 - Cost page: daily `llm_calls` totals by purpose for the last 30 days.  
 - Every admin action writes `admin_actions`.
+- Regenerate and "flip to contested" do not call Gemini from the API: they queue a pg-boss `regen` job (`REGEN_QUEUE`) that the worker runs under the tick lock. Flip to contested adds an editor note to the card prompt and rejects a facts-only answer (one retry); until a valid card comes back the old one stays. Flip to facts-only nulls left/right at once. Admin regens do not count toward `MAX_REGENS`.
+- Event/Story writes shared by the worker and the admin (`refreshEvent`, `recountStory`, `mergeEventInto`) live in `packages/db/src/ops.ts`.
 
 ---
 
@@ -361,7 +364,7 @@ Work **one milestone at a time**. At the start of each, post a short plan (files
 2. **M2 — Embeddings \+ Events (week 2).** The Gemini wrapper with `llm_calls` logging and backoff, steps 4–6, a labelling CLI (`pnpm label:pairs`) that shows 200 random article pairs from the 72 h window and records same/not-same to a CSV, and a script that reports precision/recall per threshold from that CSV. *Done when:* thresholds are chosen from labelled data. **✅ Done.**  
 3. **M3 — Cards (week 3).** Steps 7–9, prompt v1, validators with unit tests, and a script that generates 30 Events into a Markdown report for review (`pnpm cards:report`; Flash-Lite only in dev, to stay inside the free tier; `--from <report.md>` re-runs the same Events to compare prompt versions). *Gate:* the developer would publish ≥ 27 of 30 as they stand. **✅ Done (prompt v2).**  
 4. **M4 — Stories \+ summaries \+ nightly (week 4).** Steps 10–12, the nightly job, the budget brake. **✅ Done** (R2 backup and alert webhook moved to M7).  
-5. **M5 — API \+ admin (week 5).** All endpoints, admin pages, cost page. *Gate:* the pipeline runs 7 days unattended at under \$1.50/day.  
+5. **M5 — API \+ admin (week 5).** All endpoints, admin pages, cost page. *Gate:* the pipeline runs 7 days unattended at under \$1.50/day. **✅ Built; gate pending.**  
 6. **M6 — Mobile app (weeks 6–7).** Every screen in §8.  
 7. **M7 — Hardening (week 8).** Sentry, alerts, R2 backups, source-silence alerts, privacy policy screen/link.  
 8. **M8 — Closed beta (weeks 9–10).** Play Store internal testing build (EAS), fixes from testers.
@@ -383,4 +386,4 @@ Work **one milestone at a time**. At the start of each, post a short plan (files
 - Tests that touch Postgres use a separate `fr_test` database (`TEST_DATABASE_URL`, created by `docker/init-test-db.sql`) and truncate it, and they run serially (`fileParallelism: false`). Never point them at the dev database.
 - When a milestone finishes or a settled value changes, update §0, the affected section here, and `README.md`.
 
-The next milestone is **M5**: reply with your plan for it.
+The next milestone is **M6**: reply with your plan for it.

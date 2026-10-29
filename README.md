@@ -12,10 +12,10 @@ The full product and engineering brief is in [`CLAUDE.md`](CLAUDE.md).
 | M2 Embeddings + Events | ✅ thresholds tuned from labelled pairs |
 | M3 Cards | ✅ prompt v2 |
 | M4 Stories, summaries, nightly job, budget brake | ✅ (R2 backup and alert webhook moved to M7) |
-| M5 API + admin | next |
+| M5 API + admin | ✅ built; gate pending (7 days unattended under $1.50/day) |
 | M6 Mobile app, M7 Hardening, M8 Closed beta | not started |
 
-Only the worker exists so far. `apps/api` and `apps/mobile` have not been created yet.
+`apps/mobile` has not been created yet.
 
 ## Repo layout
 
@@ -30,9 +30,14 @@ apps/worker          ingestion + AI pipeline, run by pg-boss
   src/gemini/          the single Gemini wrapper: retries, llm_calls logging, cost, free-tier caps
   src/labels/          pair sampling and precision/recall for threshold tuning
   src/cli/             command-line entry points (see below)
+  src/pipeline/regenCard.ts  admin regenerate / flip to contested (pg-boss `regen` jobs from the API)
   test/                Vitest unit + fixture replay tests (Gemini is mocked)
-packages/db          Drizzle schema, migrations, client, sources seed
-packages/shared      config.ts: every threshold, window, limit and model ID
+apps/api             Fastify: public /v1 API + server-rendered admin
+  src/public/          feed, event, timeline, summary, categories, config
+  src/admin/           basic auth + same-origin check, pages, actions (each writes admin_actions)
+  test/                Fastify inject tests against fr_test
+packages/db          Drizzle schema, migrations, client, sources seed, Event/Story ops shared by worker and admin
+packages/shared      config.ts (every threshold, window, limit and model ID) and api.ts (zod schemas of the public API)
 docker/              Postgres init (creates the fr_test database)
 data/                labels, card reports (git-ignored)
 ```
@@ -58,18 +63,33 @@ pnpm db:seed                  # 12 active outlets + inactive TODO candidates
 | `pnpm worker:tick --dry-run` | Fetch and parse feeds, write nothing, skip the Gemini steps |
 | `pnpm worker:tick` | Run one full tick now |
 | `pnpm worker:start` | Long-running worker: tick every 15 min, nightly at 02:30 IST |
+| `pnpm api:start` | API on port 3000: `/v1/*` and the admin at `/admin` (needs `ADMIN_USER`/`ADMIN_PASSWORD`) |
 | `pnpm worker:nightly` | Run the nightly job now (waits for a running tick) |
 | `pnpm label:pairs` | Label article pairs (same event?) → `data/labels.csv` |
 | `pnpm label:pairs --events` | Label Event pairs (same storyline?) → `data/story-labels.csv` |
 | `pnpm label:report [--events]` | Precision/recall per threshold, with suggested `EVENT_*` / `STORY_*` values |
 | `pnpm cards:report [--n 30] [--from <report.md>]` | Generate cards for recent Events without saving them → `data/cards-<date>-v<prompt>.md` |
 | `pnpm events:reset` | Dev only: clear Events, Stories and summaries so articles are reassigned |
-| `pnpm test` | Vitest (needs the compose Postgres for the `fr_test` database) |
+| `pnpm test` | Vitest for every package, one package at a time (they share the `fr_test` database) |
 | `pnpm typecheck` | `tsc` across all packages |
 | `pnpm db:generate` | Generate a migration after editing `packages/db/src/schema.ts` |
 | `pnpm db:studio` | Browse and edit the dev database in Drizzle Studio (https://local.drizzle.studio) |
 
 Without `GEMINI_API_KEY`, a tick only ingests and skips every Gemini step.
+
+## API and admin
+
+Public, read-only, `Cache-Control: public, s-maxage=60`:
+
+| Endpoint | Returns |
+| :-- | :-- |
+| `GET /v1/feed?category=&cursor=&limit=20` | Published cards, newest first with a small multi-source boost; `nextCursor` for the next page |
+| `GET /v1/events/:id` | One card. A merged Event answers 301 to the Event it was merged into |
+| `GET /v1/stories/:id/timeline` | The Story's published Events, oldest first |
+| `GET /v1/stories/:id/summary?asOf=:eventId` | The story-so-far as of that Event, or 404 |
+| `GET /v1/categories`, `GET /v1/config` | Category labels; `{ showAiLabel, minAppVersion }` |
+
+The admin at `/admin` uses HTTP basic auth (`ADMIN_USER`/`ADMIN_PASSWORD`; it is off when they are unset). It has Events (hide, unhide, regenerate, flip contested, merge, move to Story), Stories (rename, merge), Sources (toggle) and a 30-day cost page. Regenerate and "make contested" queue a pg-boss `regen` job that the worker runs between ticks, so the API never calls Gemini. Forms are only accepted from the admin's own origin.
 
 ## Deploy (VPS)
 
@@ -77,9 +97,9 @@ The `Dockerfile` builds one image for every app; `docker-compose.yml` picks the 
 
 ```sh
 cp .env.example .env          # GEMINI_API_KEY, GEMINI_FREE_TIER=false, ADMIN_USER/ADMIN_PASSWORD
-docker compose --profile app up -d --build   # postgres → migrate (one-off) → worker
+docker compose --profile app up -d --build   # postgres → migrate (one-off) → worker + api (:3000)
 docker compose --profile app run --rm migrate pnpm db:seed --all-feeds
-docker compose logs -f worker
+docker compose logs -f worker api
 ```
 
 Postgres listens on `127.0.0.1:5432` only. Compose overrides `DATABASE_URL` to point at the `postgres` service.
@@ -106,4 +126,4 @@ Set `GEMINI_FREE_TIER=false` in production.
 
 ## Configuration
 
-All tunables are in [`packages/shared/src/config.ts`](packages/shared/src/config.ts). Environment variables are listed in [`.env.example`](.env.example). `ADMIN_*`, `R2_*`, `ALERT_WEBHOOK_URL`, `SENTRY_DSN` and `EXPO_PUBLIC_API_BASE_URL` are not used yet. They arrive with M5–M7.
+All tunables are in [`packages/shared/src/config.ts`](packages/shared/src/config.ts). Environment variables are listed in [`.env.example`](.env.example). `R2_*`, `ALERT_WEBHOOK_URL`, `SENTRY_DSN` and `EXPO_PUBLIC_API_BASE_URL` are not used yet. They arrive with M6–M7.
