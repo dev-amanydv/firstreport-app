@@ -5,7 +5,7 @@ import { DailyQuotaReached, type Gemini } from "../src/gemini/client.js";
 import { CARD_PROMPT_VERSION } from "../src/prompts/card.js";
 import { writeCards } from "../src/pipeline/writeCards.js";
 import { normalize } from "../src/vector.js";
-import { openTestDb } from "./testDb.js";
+import { openTestDb } from "@fr/db/testing";
 
 const centroid = normalize(Array.from({ length: 768 }, (_, i) => (i === 0 ? 1 : 0)));
 

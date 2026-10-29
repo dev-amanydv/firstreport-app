@@ -1,7 +1,6 @@
-import { articles, asc, eq, isNull, type Db } from "@fr/db";
+import { articles, asc, eq, isNull, refreshEvent, type Db } from "@fr/db";
 import { EMBED_BATCH_SIZE } from "@fr/shared";
 import type { Gemini } from "../gemini/client.js";
-import { refreshEvent } from "./events.js";
 
 export async function embedArticles(db: Db, gemini: Gemini) {
   let embedded = 0;

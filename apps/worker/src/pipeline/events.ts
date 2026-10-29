@@ -1,6 +1,4 @@
-import { articles, eq, events, sql, type Db } from "@fr/db";
-
-type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
+import { articles, eq, events, refreshEvent, sql, type Db } from "@fr/db";
 
 export type PendingArticle = {
   id: string;
@@ -12,16 +10,6 @@ export type PendingArticle = {
   publishedAt: Date;
   fetchedAt: Date;
 };
-
-export async function refreshEvent(tx: Db | Tx, eventId: string) {
-  await tx.execute(sql`
-    update events set
-      centroid = (select l2_normalize(avg(embedding)) from articles where event_id = ${eventId} and embedding is not null),
-      article_count = (select count(*) from articles where event_id = ${eventId}),
-      needs_recheck = needs_recheck or status = 'published'
-    where id = ${eventId}
-  `);
-}
 
 export async function createEvent(db: Db, article: PendingArticle) {
   await db.transaction(async (tx) => {

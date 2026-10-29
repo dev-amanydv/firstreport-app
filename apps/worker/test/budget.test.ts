@@ -2,7 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { llmCalls, sql, type Database } from "@fr/db";
 import { DAILY_BUDGET_HARD, DAILY_BUDGET_SOFT, FREE_TIER_SOFT_SHARE } from "@fr/shared";
 import { budgetBrake } from "../src/pipeline/budget.js";
-import { openTestDb } from "./testDb.js";
+import { openTestDb } from "@fr/db/testing";
 
 let database: Database;
 

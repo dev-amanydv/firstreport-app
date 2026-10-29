@@ -4,7 +4,7 @@ import { MATERIAL_WINDOW_HOURS, MAX_REGENS } from "@fr/shared";
 import type { Gemini } from "../src/gemini/client.js";
 import { checkMaterialChanges } from "../src/pipeline/materialChanges.js";
 import { normalize } from "../src/vector.js";
-import { openTestDb } from "./testDb.js";
+import { openTestDb } from "@fr/db/testing";
 
 const centroid = normalize(Array.from({ length: 768 }, (_, i) => (i === 0 ? 1 : 0)));
 const gemini = { embed: vi.fn(), askJson: vi.fn() } satisfies Gemini;

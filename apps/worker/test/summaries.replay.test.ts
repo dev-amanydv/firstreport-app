@@ -3,7 +3,7 @@ import { asc, events, sql, stories, storySummaries, type Database } from "@fr/db
 import type { Gemini } from "../src/gemini/client.js";
 import { updateSummaries } from "../src/pipeline/updateSummaries.js";
 import { normalize } from "../src/vector.js";
-import { openTestDb } from "./testDb.js";
+import { openTestDb } from "@fr/db/testing";
 
 const centroid = normalize(Array.from({ length: 768 }, (_, i) => (i === 0 ? 1 : 0)));
 const gemini = { embed: vi.fn(), askJson: vi.fn() } satisfies Gemini;

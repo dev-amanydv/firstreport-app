@@ -4,7 +4,7 @@ import { STORY_BORDER_LOW, STORY_JOIN } from "@fr/shared";
 import type { Gemini } from "../src/gemini/client.js";
 import { linkStories } from "../src/pipeline/linkStories.js";
 import { normalize } from "../src/vector.js";
-import { openTestDb } from "./testDb.js";
+import { openTestDb } from "@fr/db/testing";
 
 function vector(entries: Record<number, number>) {
   return normalize(Array.from({ length: 768 }, (_, i) => entries[i] ?? 0));

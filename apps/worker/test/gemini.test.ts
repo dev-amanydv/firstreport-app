@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { llmCalls, sql, type Database } from "@fr/db";
 import { createGemini, DailyQuotaReached, spentToday, type GeminiModels } from "../src/gemini/client.js";
-import { openTestDb } from "./testDb.js";
+import { openTestDb } from "@fr/db/testing";
 
 vi.mock("node:timers/promises", () => ({ setTimeout: async () => {} }));
 

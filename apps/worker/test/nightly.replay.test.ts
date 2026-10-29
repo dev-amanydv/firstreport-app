@@ -3,7 +3,7 @@ import { articles, eq, events, sources, sql, stories, type Database } from "@fr/
 import { BODY_RETENTION_DAYS, CARD_MAX_AGE_HOURS, EVENT_JOIN, STORY_DORMANT_DAYS } from "@fr/shared";
 import { pickSurvivor, runNightly } from "../src/nightly.js";
 import { normalize } from "../src/vector.js";
-import { openTestDb } from "./testDb.js";
+import { openTestDb } from "@fr/db/testing";
 
 function vector(entries: Record<number, number>) {
   return normalize(Array.from({ length: 768 }, (_, i) => entries[i] ?? 0));

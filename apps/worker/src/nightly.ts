@@ -1,4 +1,4 @@
-import { and, articles, eq, events, sql, stories, type Database, type Db } from "@fr/db";
+import { and, articles, eq, mergeEventInto, sql, stories, type Database, type Db } from "@fr/db";
 import {
   BODY_RETENTION_DAYS,
   CARD_MAX_AGE_HOURS,
@@ -8,7 +8,6 @@ import {
   STORY_DORMANT_DAYS,
   TICK_LOCK_ID,
 } from "@fr/shared";
-import { refreshEvent } from "./pipeline/events.js";
 
 type Twin = { id: string; firstSeenAt: string; status: string; storyId: string | null };
 type TwinPair = { a: Twin; b: Twin; score: number };
@@ -17,13 +16,6 @@ type TwinPair = { a: Twin; b: Twin; score: number };
 export function pickSurvivor(a: Twin, b: Twin) {
   if ((a.status === "published") !== (b.status === "published")) return a.status === "published" ? [a, b] : [b, a];
   return new Date(a.firstSeenAt) <= new Date(b.firstSeenAt) ? [a, b] : [b, a];
-}
-
-async function recountStory(tx: Parameters<Parameters<Db["transaction"]>[0]>[0], storyId: string) {
-  await tx.execute(sql`
-    update stories set event_count = (select count(*) from events where story_id = ${storyId} and status = 'published')
-    where id = ${storyId}
-  `);
 }
 
 async function mergeTwins(db: Db) {
@@ -51,19 +43,7 @@ async function mergeTwins(db: Db) {
     touched.add(pair.a.id).add(pair.b.id);
     const [survivor, loser] = pickSurvivor(pair.a, pair.b);
 
-    await db.transaction(async (tx) => {
-      await tx.update(articles).set({ eventId: survivor!.id }).where(eq(articles.eventId, loser!.id));
-      await tx.update(events).set({ status: "merged", mergedIntoId: survivor!.id }).where(eq(events.id, loser!.id));
-      await tx.execute(sql`
-        update events set
-          last_article_at = greatest(last_article_at, (select last_article_at from events where id = ${loser!.id})),
-          image_url = coalesce(image_url, (select image_url from events where id = ${loser!.id}))
-        where id = ${survivor!.id}
-      `);
-      // Sets needs_recheck on a published survivor, so step 12 rewrites its card if the new articles matter.
-      await refreshEvent(tx, survivor!.id);
-      if (loser!.storyId) await recountStory(tx, loser!.storyId);
-    });
+    await db.transaction((tx) => mergeEventInto(tx, survivor!.id, loser!.id));
     merged++;
   }
   return merged;

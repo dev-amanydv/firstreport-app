@@ -1,6 +1,6 @@
-import { and, articles, cosineDistance, eq, gte, ne, sql, type Db } from "@fr/db";
+import { and, articles, cosineDistance, eq, gte, ne, refreshEvent, sql, type Db } from "@fr/db";
 import { NEAR_DUP_SAME_SOURCE, NEAR_DUP_WINDOW_HOURS } from "@fr/shared";
-import { refreshEvent, type PendingArticle } from "./events.js";
+import type { PendingArticle } from "./events.js";
 
 export async function findNearDuplicate(db: Db, article: PendingArticle) {
   const distance = cosineDistance(articles.embedding, article.embedding);

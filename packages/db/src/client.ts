@@ -12,6 +12,7 @@ export function createDb(url: string) {
 
 export type Database = ReturnType<typeof createDb>;
 export type Db = Database["db"];
+export type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
 
 export function runMigrations(db: Db) {
   return migrate(db, { migrationsFolder: fileURLToPath(new URL("../migrations", import.meta.url)) });

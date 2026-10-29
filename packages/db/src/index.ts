@@ -3,3 +3,4 @@ export * from "./schema.js";
 export * from "./client.js";
 export * from "./env.js";
 export * from "./time.js";
+export * from "./ops.js";

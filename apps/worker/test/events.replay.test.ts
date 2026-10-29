@@ -5,7 +5,7 @@ import type { Gemini } from "../src/gemini/client.js";
 import { assignArticles } from "../src/pipeline/assignEvents.js";
 import { embedArticles } from "../src/pipeline/embed.js";
 import { cosine, normalize } from "../src/vector.js";
-import { openTestDb } from "./testDb.js";
+import { openTestDb } from "@fr/db/testing";
 
 function vector(entries: Record<number, number>) {
   const values = Array.from({ length: 768 }, (_, i) => entries[i] ?? 0);
