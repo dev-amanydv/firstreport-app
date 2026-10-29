@@ -13,9 +13,8 @@ The full product and engineering brief is in [`CLAUDE.md`](CLAUDE.md).
 | M3 Cards | ✅ prompt v2 |
 | M4 Stories, summaries, nightly job, budget brake | ✅ (R2 backup and alert webhook moved to M7) |
 | M5 API + admin | ✅ built; gate pending (7 days unattended under $1.50/day) |
-| M6 Mobile app, M7 Hardening, M8 Closed beta | not started |
-
-`apps/mobile` has not been created yet.
+| M6 Mobile app | in progress: the home screen is built; History, Story so far and Account come next |
+| M7 Hardening, M8 Closed beta | not started |
 
 ## Repo layout
 
@@ -36,6 +35,12 @@ apps/api             Fastify: public /v1 API + server-rendered admin
   src/public/          feed, event, timeline, summary, categories, config
   src/admin/           basic auth + same-origin check, pages, actions (each writes admin_actions)
   test/                Fastify inject tests against fr_test
+apps/mobile          Expo (SDK 58) + expo-router app; the UI follows packages/designs
+  app/(tabs)/          Explore · Home · Account (only Home is built)
+  src/components/      card, perspective swipe, action bar, category strip, feed pager, bottom bar
+  src/lib/             pure helpers (relative time, image height, progress, share text), unit-tested
+  src/theme/tokens.ts  colours, fonts and sizes taken from the design artboard
+packages/designs     the design artboard (reference mockup, not code)
 packages/db          Drizzle schema, migrations, client, sources seed, Event/Story ops shared by worker and admin
 packages/shared      config.ts (every threshold, window, limit and model ID) and api.ts (zod schemas of the public API)
 docker/              Postgres init (creates the fr_test database)
@@ -64,6 +69,7 @@ pnpm db:seed                  # 12 active outlets + inactive TODO candidates
 | `pnpm worker:tick` | Run one full tick now |
 | `pnpm worker:start` | Long-running worker: tick every 15 min, nightly at 02:30 IST |
 | `pnpm api:start` | API on port 3000: `/v1/*` and the admin at `/admin` (needs `ADMIN_USER`/`ADMIN_PASSWORD`) |
+| `pnpm mobile` | Expo dev server for the app (see "Mobile app" below) |
 | `pnpm worker:nightly` | Run the nightly job now (waits for a running tick) |
 | `pnpm label:pairs` | Label article pairs (same event?) → `data/labels.csv` |
 | `pnpm label:pairs --events` | Label Event pairs (same storyline?) → `data/story-labels.csv` |
@@ -83,13 +89,27 @@ Public, read-only, `Cache-Control: public, s-maxage=60`:
 
 | Endpoint | Returns |
 | :-- | :-- |
-| `GET /v1/feed?category=&cursor=&limit=20` | Published cards, newest first with a small multi-source boost; `nextCursor` for the next page |
+| `GET /v1/feed?category=&cursor=&limit=20` | Published cards, newest first with a small multi-source boost; `nextCursor` for the next page; `windowTotal` (the category's cards from the last 24 h, for the app's progress bar) |
 | `GET /v1/events/:id` | One card. A merged Event answers 301 to the Event it was merged into |
 | `GET /v1/stories/:id/timeline` | The Story's published Events, oldest first |
 | `GET /v1/stories/:id/summary?asOf=:eventId` | The story-so-far as of that Event, or 404 |
 | `GET /v1/categories`, `GET /v1/config` | Category labels; `{ showAiLabel, minAppVersion }` |
 
 The admin at `/admin` uses HTTP basic auth (`ADMIN_USER`/`ADMIN_PASSWORD`; it is off when they are unset). It has Events (hide, unhide, regenerate, flip contested, merge, move to Story), Stories (rename, merge), Sources (toggle) and a 30-day cost page. Regenerate and "make contested" queue a pg-boss `regen` job that the worker runs between ticks, so the API never calls Gemini. Forms are only accepted from the admin's own origin.
+
+## Mobile app
+
+The app reads only the public `/v1` API and holds no secrets. Expo reads its `.env` from `apps/mobile/`, not the repo root:
+
+```sh
+echo "EXPO_PUBLIC_API_BASE_URL=http://10.0.2.2:3000" > apps/mobile/.env   # Android emulator → host; use your LAN IP for a phone
+pnpm api:start
+pnpm mobile                   # then press a (Android) or i (iOS)
+```
+
+Gesture handler, Reanimated and pager-view are native modules, so the app needs a development build (`npx expo run:android` from `apps/mobile`) if Expo Go does not have matching versions.
+
+The UI follows the artboard in [`packages/designs`](packages/designs). Light colours, type sizes and spacing are copied from it into `src/theme/tokens.ts`; dark values are derived. The headline font is a static cut of Newsreader at optical size 26 (`assets/fonts`), because the Google Fonts package only ships optical size 16.
 
 ## Deploy (VPS)
 
@@ -126,4 +146,4 @@ Set `GEMINI_FREE_TIER=false` in production.
 
 ## Configuration
 
-All tunables are in [`packages/shared/src/config.ts`](packages/shared/src/config.ts). Environment variables are listed in [`.env.example`](.env.example). `R2_*`, `ALERT_WEBHOOK_URL`, `SENTRY_DSN` and `EXPO_PUBLIC_API_BASE_URL` are not used yet. They arrive with M6–M7.
+All tunables are in [`packages/shared/src/config.ts`](packages/shared/src/config.ts). Environment variables are listed in [`.env.example`](.env.example). `R2_*`, `ALERT_WEBHOOK_URL` and `SENTRY_DSN` are not used yet. They arrive with M7. `EXPO_PUBLIC_API_BASE_URL` belongs in `apps/mobile/.env`.

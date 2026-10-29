@@ -7,7 +7,7 @@ You are the engineering partner on **FirstReport**, a mobile-first Indian news a
 ## 0\. Current status (keep this section up to date)
 
 - **Done:** M1 (ingest), M2 (embeddings + Events, thresholds tuned from labelled data), M3 (cards, prompt v2), M4 (Stories, summaries, material-change rewrites, budget brake, nightly job). M5 is built (`apps/api`: public `/v1` API, admin, cost page), and the worker and API run under Docker Compose (`--profile app`).
-- **Next:** the M5 gate: run the pipeline 7 days unattended at under $1.50/day. Then M6 (mobile; `apps/mobile` does not exist yet). Post the plan first and wait for a go-ahead.
+- **In progress:** M6. The home screen is built in `apps/mobile` (Expo SDK 58), following the design in `packages/designs`. Next: the History and Story-so-far sheets, then Account (dark-mode toggle, About perspectives). The M5 gate (7 days unattended under $1.50/day) still has to be run.
 - **Still open from M4:** the nightly `pg_dump` → R2 upload and the alert webhook are deferred to M7. Alerts are only logged (`ALERT:` lines) for now.
 - **Still yours:** the 13 `TODO` feed URLs in the seed.
 - **Dev runs on the Gemini free tier** (`GEMINI_FREE_TIER`, on unless set to `false`). That is why the code has daily request caps, a daily article cap and fewer seeded feeds. Production sets `GEMINI_FREE_TIER=false`. See §6, "Free-tier and cost guards".
@@ -290,7 +290,7 @@ All thresholds, windows, limits and model IDs live in **`packages/shared/src/con
 
 Public, read-only, cacheable:
 
-- `GET /v1/feed?category=&cursor=&limit=20`: published Events ordered by `first_seen_at` desc, with a small boost for multi-source Events (e.g. sort key \= `first_seen_at + least(article_count, 5) * 10 minutes`, configurable). Cursor-based pagination.  
+- `GET /v1/feed?category=&cursor=&limit=20`: published Events ordered by `first_seen_at` desc, with a small boost for multi-source Events (e.g. sort key \= `first_seen_at + least(article_count, 5) * 10 minutes`, configurable). Cursor-based pagination. Each page also carries `windowTotal`: the category's published Events from the last `FEED_PROGRESS_WINDOW_HOURS` (24), for the app's progress bar.  
 - `GET /v1/events/:id`: one card (published only). A merged Event answers 301 to its survivor.  
 - `GET /v1/stories/:id/timeline`: the Story's published Events, oldest first (id, headline, first\_seen\_at).  
 - `GET /v1/stories/:id/summary?asOf=:eventId`: the summary row for that Event; 404 if none.  
@@ -304,6 +304,8 @@ Card payload:
   id, headline, category, firstSeenAt, imageUrl,
 
   neutral, contested, left, right,          // left/right null when not contested
+
+  imageCredit,                              // outlet the image comes from, for "Photo: {outlet}"
 
   sources: { name: string; url: string }\[\], // max 5, newest first
 
@@ -325,10 +327,13 @@ Admin (server-rendered HTML, HTTP basic auth via `ADMIN_USER`/`ADMIN_PASSWORD`, 
 
 ## 8\. Mobile app (`apps/mobile`, Expo)
 
-- **Feed:** a vertical pager of full-screen cards. Image on top with outlet credit, then headline, then the perspective text pane. A progress bar at the bottom. Infinite scroll via cursor.  
-- **Perspective pane:** a horizontal swipe between Left ← Neutral → Right, with badge colours as in §1 and pulsing swipe hints on the first few cards. If `contested = false`: Neutral only, "Facts only" badge, horizontal swipe disabled. If `/v1/config.showAiLabel` is true, show a small "AI-generated viewpoint" tag on the left/right panes.  
-- **Action bar:** History (bottom sheet with the timeline; tapping an item opens that Event as a modal card), Summary (bottom sheet, fetched with `asOf` \= the current Event), Source (opens the top source URL), Share (native share with headline \+ current pane text \+ app link). History/Summary hidden when `story.eventCount <= 1`.  
-- **Side menu:** categories, dark mode toggle, an "About perspectives" screen (static text explaining how cards are made).  
+The UI follows the design artboard in `packages/designs` (a reference mockup: copy its values into `src/theme/tokens.ts`, not its markup). It replaces the original side menu with a top category strip and a bottom bar.
+
+- **Layout:** a category strip on top ("Top stories" \= all categories, then National, Business, Technology, Sports, Entertainment, World), the feed, and a bottom bar with Explore · Home · Account (icons only).  
+- **Feed:** a vertical pager of full-screen cards. Image on top with "Photo: {outlet}" credit, then a 2px progress bar (position among the category's cards from the last 24 h, `windowTotal`), then a meta line (category · age · source count), the headline, and the perspective pane. Infinite scroll via cursor. Coming back after 10 minutes resets to the newest card. On short screens only the image shrinks.  
+- **Perspective pane:** a tab row (Left-leaning · Neutral · Right-leaning) over a horizontal swipe, Left ← Neutral → Right. The underline follows the finger in the pane's colour (Neutral green from the design; Left red and Right purple as in §1). The inactive tabs pulse on the first 3 contested cards. If `contested = false`: the same row reads "Facts only", and horizontal swipe is disabled. If `/v1/config.showAiLabel` is true, show a small "AI-generated viewpoint" tag on the left/right panes.  
+- **Action bar:** hidden until the card is tapped; it hides again on the next card. History (bottom sheet with the timeline; tapping an item opens that Event as a modal card), Story so far (bottom sheet, fetched with `asOf` \= the current Event), Source (opens the top source URL), Share (native share with headline \+ current pane text \+ app link). History/Story so far hidden when `story.eventCount <= 1`.  
+- **Account:** dark mode toggle (the app follows the system until then), an "About perspectives" screen (static text explaining how cards are made). **Explore** has no content yet.  
 - **Images:** expo-image with a per-category placeholder on error.  
 - The app makes **no AI calls** and holds **no secrets**.
 
@@ -350,7 +355,7 @@ ALERT\_WEBHOOK\_URL=          \# optional
 
 SENTRY\_DSN=                 \# optional
 
-EXPO\_PUBLIC\_API\_BASE\_URL=   \# mobile
+EXPO\_PUBLIC\_API\_BASE\_URL=   \# mobile; Expo reads it from apps/mobile/.env
 
 Provide `.env.example`. Never commit secrets.
 
