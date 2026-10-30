@@ -117,6 +117,8 @@ adb reverse tcp:8081 tcp:8081        # Metro
 
 The reverse rules are lost whenever the connection drops; "Couldn't load the news." on the phone usually means they need re-running. Judge smoothness on a release build (`pnpm exec expo run:android --variant release --device`): a debug build runs JavaScript unoptimised.
 
+App icons and splash images live in `apps/mobile/assets/images` and are generated from `assets/first-report-icon-light.png` by `scripts/build-icons.py` (see its header for the command). They cover the iOS light, dark and tinted icons, the Android adaptive icon with a monochrome layer for themed icons, and a light and dark splash. After changing them, regenerate the native project: `npx expo prebuild -p android --clean`.
+
 Gesture handler, Reanimated and pager-view are native modules, so the app needs a development build (`npx expo run:android` from `apps/mobile`) if Expo Go does not have matching versions.
 
 The UI follows the artboard in [`packages/designs`](packages/designs). Light colours, type sizes and spacing are copied from it into `src/theme/tokens.ts`; dark values are derived. The headline font is a static cut of Newsreader at optical size 26 (`assets/fonts`), because the Google Fonts package only ships optical size 16.

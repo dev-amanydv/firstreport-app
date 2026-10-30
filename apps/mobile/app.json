@@ -4,15 +4,26 @@
     "slug": "firstreport",
     "scheme": "firstreport",
     "version": "1.0.0",
+    "icon": "./assets/images/icon.png",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
     "backgroundColor": "#E6E6E6",
     "android": {
-      "package": "in.firstreport.app"
+      "package": "in.firstreport.app",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/adaptive-icon.png",
+        "monochromeImage": "./assets/images/adaptive-monochrome.png",
+        "backgroundColor": "#FAF8F4"
+      }
     },
     "ios": {
       "bundleIdentifier": "in.firstreport.app",
-      "supportsTablet": false
+      "supportsTablet": false,
+      "icon": {
+        "light": "./assets/images/icon.png",
+        "dark": "./assets/images/icon-dark.png",
+        "tinted": "./assets/images/icon-tinted.png"
+      }
     },
     "plugins": [
       "expo-router",
@@ -21,8 +32,11 @@
       [
         "expo-splash-screen",
         {
+          "image": "./assets/images/splash-icon.png",
+          "imageWidth": 200,
           "backgroundColor": "#E6E6E6",
           "dark": {
+            "image": "./assets/images/splash-icon-dark.png",
             "backgroundColor": "#0B0B0B"
           }
         }
