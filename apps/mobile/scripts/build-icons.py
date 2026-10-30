@@ -1,4 +1,4 @@
-# Builds the app icons and splash images in assets/images from assets/first-report-icon-light.png.
+# Builds the app icons in assets/images from assets/first-report-icon-light.png.
 # Run from apps/mobile:  uv run --with pillow --with numpy python scripts/build-icons.py assets assets/images
 # The mark is pulled out as an anti-aliased alpha mask, then recoloured flat and placed on clean canvases.
 import sys
@@ -49,6 +49,3 @@ place(TINT, 1024, 0.56).save(OUT / "icon-tinted.png")
 # Android masks the adaptive foreground to the inner 66/108; the mark stays inside it.
 place(LIGHT, 1024, 0.40).save(OUT / "adaptive-icon.png")
 place(MONO, 1024, 0.40).save(OUT / "adaptive-monochrome.png")
-# Android 12+ crops the splash icon to a circle two-thirds of the canvas wide.
-place(LIGHT, 1024, 0.48).save(OUT / "splash-icon.png")
-place(DARK, 1024, 0.48).save(OUT / "splash-icon-dark.png")
