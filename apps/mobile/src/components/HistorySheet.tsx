@@ -61,7 +61,7 @@ export function HistorySheet({ palette, visible, storyId, currentId, onClose, on
     });
 
   return (
-    <Sheet palette={palette} visible={visible} title="History" onClose={onClose}>
+    <Sheet palette={palette} visible={visible} title="Timeline" onClose={onClose}>
       {content}
     </Sheet>
   );
