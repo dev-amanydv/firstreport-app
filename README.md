@@ -47,19 +47,231 @@ docker/              Postgres init (creates the fr_test database)
 data/                labels, card reports (git-ignored)
 ```
 
-## Setup
+## Run it locally
 
-You need Node ≥ 24, pnpm 12 and Docker.
+This walks through the whole stack on one Mac: Postgres in Docker, then the worker, the API and the mobile app running from source. All commands run from the repo root unless a step says otherwise. Once everything is set up you will have four terminals open:
+
+| Terminal | Command | Purpose |
+| :-- | :-- | :-- |
+| 1 | `docker compose up -d` (runs in the background) | Postgres 16 + pgvector on `localhost:5432` |
+| 2 | `pnpm worker:start` | Pipeline: a tick every 15 min, nightly job at 02:30 IST, admin regen jobs |
+| 3 | `pnpm api:start` | Public `/v1` API and `/admin` on `localhost:3000` |
+| 4 | `pnpm mobile` | Expo / Metro bundler for the app |
+
+### 1. Install the prerequisites
+
+| Tool | Version | Check | Notes |
+| :-- | :-- | :-- | :-- |
+| Node.js | ≥ 24 | `node -v` | `nvm install 24` or `brew install node@24` |
+| pnpm | 12 (pinned to `pnpm@12.8.1` in `package.json`) | `pnpm -v` | `corepack enable`. Corepack then uses the pinned version automatically |
+| Docker | Docker Desktop (or OrbStack / Colima) | `docker compose version` | Must be running before step 3 |
+| Gemini API key | free tier is fine | | Create one at [aistudio.google.com/apikey](https://aistudio.google.com/apikey). Without it the worker only ingests (no Events beyond step 6, no cards), so the app has nothing to show |
+
+For the mobile app you also need one of these:
+
+- **Android (main target):** Android Studio with an Android SDK and platform tools, and JDK 17 (Android Studio's bundled JDK works). Put the SDK on your path, in `~/.zshrc`:
+  ```sh
+  export ANDROID_HOME="$HOME/Library/Android/sdk"
+  export PATH="$PATH:$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator"
+  export JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home"
+  ```
+  Then either create an emulator (Android Studio → Device Manager) or connect a phone with Developer options and USB / wireless debugging on. `adb devices` should list it.
+- **iOS simulator (optional):** Xcode with a simulator runtime installed, and CocoaPods (`brew install cocoapods`).
+
+Expo Go is not enough: the app uses native modules (gesture handler, Reanimated, pager-view), so it runs as a development build that you compile once (step 7).
+
+### 2. Clone, install and configure
 
 ```sh
-pnpm install
-cp .env.example .env          # set GEMINI_API_KEY; DATABASE_URL already points at the compose DB
-docker compose up -d          # Postgres 16 + pgvector, with databases fr and fr_test
-pnpm db:migrate
-pnpm db:seed                  # 12 active outlets + inactive TODO candidates
+git clone <repo-url> fr-app && cd fr-app
+pnpm install                  # installs every workspace (apps/*, packages/*)
+cp .env.example .env
 ```
 
-`pnpm db:seed --all-feeds` also adds the extra section feeds that are left out by default to stay in the Gemini free tier.
+Edit the root `.env`. Every app (worker, API, db scripts) loads it with `--env-file-if-exists`:
+
+| Variable | Local value | Why |
+| :-- | :-- | :-- |
+| `DATABASE_URL` | `postgres://fr:fr@localhost:5432/fr` (already set) | Dev database created by compose |
+| `TEST_DATABASE_URL` | `postgres://fr:fr@localhost:5432/fr_test` (already set) | Used only by `pnpm test`, which truncates it |
+| `GEMINI_API_KEY` | your key | Embeddings, cards, Stories, summaries |
+| `GEMINI_FREE_TIER` | `true` | Keeps you under the free-tier daily caps (see "Gemini free tier" below) |
+| `ADMIN_USER`, `ADMIN_PASSWORD` | anything, e.g. `admin` / `admin` | The admin at `/admin` is turned off while either is empty |
+| `R2_*`, `ALERT_WEBHOOK_URL`, `SENTRY_DSN` | leave empty | Not used until M7 |
+| `EXPO_PUBLIC_API_BASE_URL` | leave empty here | The app reads its own `apps/mobile/.env` instead (step 7) |
+
+`.env` is git-ignored. Never commit it.
+
+### 3. Start Postgres
+
+```sh
+docker compose up -d          # starts only the postgres service; the app services sit behind the "app" profile
+docker compose ps             # wait until postgres shows "healthy"
+docker compose exec postgres psql -U fr -c '\l'   # should list both fr and fr_test
+```
+
+The container is `pgvector/pgvector:pg16`, bound to `127.0.0.1:5432`, with user, password and database all `fr`. Data lives in the `pgdata` Docker volume, so it survives restarts. `docker/init-test-db.sql` creates `fr_test`, but only the first time the volume is created. If `fr_test` is missing, create it by hand:
+
+```sh
+docker compose exec postgres psql -U fr -c 'CREATE DATABASE fr_test'
+```
+
+If the port is taken (`address already in use`), another Postgres is running on 5432. Stop it (`brew services stop postgresql@16`, for example) or change the left side of the port mapping in `docker-compose.yml` and both URLs in `.env`.
+
+### 4. Create the schema and seed the sources
+
+```sh
+pnpm db:migrate               # applies packages/db/migrations (pgvector extension, tables, enums); prints "migrations applied"
+pnpm db:seed                  # upserts 12 active outlets with real feeds + 13 inactive TODO candidates
+```
+
+Both are safe to re-run. `pnpm db:seed --all-feeds` adds the extra section feeds that are left out by default to stay within the Gemini free tier. pg-boss creates its own `pgboss` schema the first time the worker or API starts.
+
+Check the result in Drizzle Studio (`pnpm db:studio`, then open https://local.drizzle.studio) or with psql:
+
+```sh
+docker compose exec postgres psql -U fr -c 'select name, active from sources order by active desc, name'
+```
+
+### 5. Run the worker
+
+First check that feeds can be fetched, without writing anything or calling Gemini:
+
+```sh
+pnpm worker:tick --dry-run    # logs per-step counts, then "dry run: nothing written, later steps skipped"
+```
+
+Then fill the database by hand with two real ticks:
+
+```sh
+pnpm worker:tick              # 1st: ingest → embed → assign articles to new Events (status collecting)
+pnpm worker:tick              # 2nd: Events from the 1st tick get cards → published → Stories → summaries
+```
+
+Cards wait one tick on purpose (pipeline step 7), so the first tick never publishes anything. Each step logs a line like `cards: {...} in 4.2s`, and the tick ends with `tick finished in …s`. The first tick on an empty database takes a few minutes: it fetches every feed and, for thin RSS items, the article page (at most one request every 3 s per domain). Check what came out:
+
+```sh
+docker compose exec postgres psql -U fr -c 'select status, count(*) from events group by 1'
+```
+
+You want some `published` rows. Then leave the long-running worker going in its own terminal:
+
+```sh
+pnpm worker:start             # "worker started, tick schedule: */15 * * * *, nightly: 30 2 * * * Asia/Kolkata"
+```
+
+It ticks on every quarter hour, runs the nightly job at 02:30 IST, and runs admin regenerate jobs from the API. A manual `pnpm worker:tick` while it runs is safe: the advisory lock makes one of them log `tick already running, skipping`. Stop it with Ctrl-C.
+
+On the free tier the day's quota can run out. Look for `DailyQuotaReached` in the log, or check the cost page in the admin. Ingestion stops after 250 new articles per IST day, so later ticks that day may add nothing. Events older than 24 h are never carded or served, so a database left alone for a few days shows an empty feed until the worker runs again.
+
+### 6. Run the API
+
+```sh
+pnpm api:start                # Fastify on 0.0.0.0:3000 (logs JSON lines)
+PORT=3077 pnpm api:start      # if something else already uses 3000
+```
+
+Check it from another terminal:
+
+```sh
+curl -s localhost:3000/v1/config                      # {"showAiLabel":false,"minAppVersion":"1.0.0"}
+curl -s 'localhost:3000/v1/feed?limit=2' | head -c 600 # published cards; "items": [] means no published Events yet (go back to step 5)
+curl -s localhost:3000/v1/categories
+```
+
+Open the admin at http://localhost:3000/admin and sign in with `ADMIN_USER` / `ADMIN_PASSWORD`. It lists Events, Stories and Sources and has a 30-day cost page. Regenerate and "make contested" only queue a job, so the worker from step 5 must be running for them to take effect.
+
+### 7. Run the mobile app
+
+**a. Point the app at the API.** The app reads `apps/mobile/.env`, not the root `.env`. `EXPO_PUBLIC_*` values are inlined into the bundle when Metro builds it. Pick the URL for where the app runs:
+
+| App runs on | `EXPO_PUBLIC_API_BASE_URL` | Extra step |
+| :-- | :-- | :-- |
+| iOS simulator | `http://localhost:3000` | none: the simulator shares the Mac's network |
+| Android emulator | `http://10.0.2.2:3000` | none: `10.0.2.2` is the emulator's alias for the Mac |
+| Android phone over USB or wireless adb | `http://localhost:3000` | `adb reverse tcp:3000 tcp:3000` (and `tcp:8081` for Metro), see below |
+| Any phone on the same Wi‑Fi, no adb | `http://<Mac LAN IP>:3000` | find the IP with `ipconfig getifaddr en0`; allow incoming connections for Node in the macOS firewall |
+
+```sh
+echo "EXPO_PUBLIC_API_BASE_URL=http://10.0.2.2:3000" > apps/mobile/.env
+```
+
+Use the port the API actually listens on (3077 if you started it with `PORT=3077`). Without the variable the app falls back to `http://localhost:3000`.
+
+**b. Build and install the development build (once, and again after native changes).** Start an emulator or connect the phone first, then:
+
+```sh
+pnpm --filter @fr/mobile android     # expo run:android: generates apps/mobile/android (git-ignored), builds with Gradle, installs, starts Metro
+pnpm --filter @fr/mobile ios         # same for the iOS simulator (generates apps/mobile/ios, runs pod install)
+```
+
+The first Android build takes 5–15 minutes while Gradle downloads its dependencies; later builds are incremental. Rebuild after adding a native package, changing `app.json`, or changing icons or splash images (`pnpm exec expo prebuild -p android --clean` from `apps/mobile` regenerates the native project).
+
+**c. Day to day, just start Metro** and open the already installed FirstReport app (or press `a` / `i` in the Metro terminal):
+
+```sh
+pnpm mobile                          # expo start
+pnpm mobile --clear                  # after editing apps/mobile/.env, so the new URL is inlined
+```
+
+**Physical Android phone.** For USB, plug it in and accept the debugging prompt. For Wi‑Fi, pair once (Developer options → Wireless debugging → Pair device with pairing code, then `adb pair <ip:port>`); adb reconnects by itself after that. Each session, route the phone's `localhost` to the Mac:
+
+```sh
+adb devices                          # one line per device; if the phone shows twice, add -s <serial> to the commands below
+adb reverse tcp:3000 tcp:3000        # API (use 3077 if the API runs on 3077)
+adb reverse tcp:8081 tcp:8081        # Metro
+```
+
+The reverse rules disappear whenever the connection drops. "Couldn't load the news." on the phone usually means they need re-running.
+
+A debug build runs JavaScript unoptimised, so judge scrolling smoothness on a release build: `pnpm exec expo run:android --variant release --device` from `apps/mobile`.
+
+### 8. Run the tests and type checks
+
+```sh
+pnpm test                     # Vitest in every package, one at a time; DB tests use fr_test and truncate it; Gemini is mocked
+pnpm typecheck                # tsc across all packages
+```
+
+Postgres must be up for `pnpm test`. The tests never touch the `fr` database or call the real Gemini API.
+
+### Alternative: worker and API in Docker
+
+To run the backend the way the VPS does, instead of steps 4–6:
+
+```sh
+docker compose --profile app up -d --build                           # postgres → migrate (one-off) → worker + api on :3000
+docker compose --profile app run --rm migrate pnpm db:seed           # seed once
+docker compose logs -f worker api
+```
+
+The containers read the same root `.env`, but compose points `DATABASE_URL` at the `postgres` service. Don't also run `pnpm worker:start` / `pnpm api:start` on the host at the same time (port 3000 clashes). The mobile app still runs from source as in step 7. Stop the app services with `docker compose --profile app down`.
+
+### Stopping and resetting
+
+| Goal | Command |
+| :-- | :-- |
+| Stop worker, API, Metro | Ctrl-C in their terminals |
+| Stop Postgres, keep data | `docker compose down` |
+| Wipe the database completely | `docker compose down -v`, then steps 3–5 again |
+| Keep articles, redo grouping and cards | `pnpm events:reset` (clears Events, Stories, summaries), then `pnpm worker:tick` twice |
+
+### Troubleshooting
+
+| Symptom | Cause and fix |
+| :-- | :-- |
+| `DATABASE_URL is not set` | No root `.env`. Run `cp .env.example .env` |
+| `ECONNREFUSED 127.0.0.1:5432` | Postgres is not running. `docker compose up -d`, wait for healthy |
+| `type "vector" does not exist` | Migrations not applied. `pnpm db:migrate` |
+| `GEMINI_API_KEY is not set: Gemini steps skipped` | Add the key to the root `.env` |
+| Ticks run but no Events get published | The first tick never publishes; run a second. Otherwise look for `DailyQuotaReached` or Gemini errors in the log, and for `failed` Events in the admin |
+| Feed in the app is empty | `curl localhost:3000/v1/feed` returns no items: published Events are older than 24 h. Run `pnpm worker:tick` twice |
+| "Couldn't load the news." | Wrong `EXPO_PUBLIC_API_BASE_URL` for the device, missing `adb reverse`, or the API is down. Fix it, then `pnpm mobile --clear` |
+| Changed `apps/mobile/.env` but the app still uses the old URL | The value is inlined at bundle time: restart Metro with `--clear` |
+| `/admin` returns 404 | `ADMIN_USER` or `ADMIN_PASSWORD` is empty; set both and restart the API |
+| `EADDRINUSE :3000` | Another process (or the Docker `api` service) is on 3000. Stop it or use `PORT=3077 pnpm api:start` and match the app's URL |
+| `pnpm test` fails with `database "fr_test" does not exist` | Create it (see step 3) |
+| Android build: `SDK location not found` / wrong Java | Set `ANDROID_HOME` and `JAVA_HOME` (step 1) and open a new terminal |
 
 ## Running
 
@@ -99,27 +311,9 @@ The admin at `/admin` uses HTTP basic auth (`ADMIN_USER`/`ADMIN_PASSWORD`; it is
 
 ## Mobile app
 
-The app reads only the public `/v1` API and holds no secrets. Expo reads its `.env` from `apps/mobile/`, not the repo root:
-
-```sh
-echo "EXPO_PUBLIC_API_BASE_URL=http://10.0.2.2:3000" > apps/mobile/.env   # Android emulator → host; use your LAN IP for a phone
-pnpm api:start
-pnpm mobile                   # then open the installed app on the phone
-```
-
-**Phone over Wi‑Fi adb.** Pair once (Developer options → Wireless debugging → Pair device with pairing code, then `adb pair <ip:port>`). After that adb reconnects by itself, so skip `adb connect`. Each session, route the phone's localhost to the Mac:
-
-```sh
-adb devices                          # one line per phone; if it is listed twice, add -s <serial> below
-adb reverse tcp:3077 tcp:3077        # API (the README uses PORT=3077 when 3000 is taken)
-adb reverse tcp:8081 tcp:8081        # Metro
-```
-
-The reverse rules are lost whenever the connection drops; "Couldn't load the news." on the phone usually means they need re-running. Judge smoothness on a release build (`pnpm exec expo run:android --variant release --device`): a debug build runs JavaScript unoptimised.
+The app reads only the public `/v1` API and holds no secrets. How to point it at the API, build it and run it on an emulator or phone is in [Run it locally](#run-it-locally), step 7.
 
 App icons and splash logos live in `apps/mobile/assets/images`. `scripts/build-icons.py` makes the icons from `assets/first-report-icon-light.png`: iOS light, dark and tinted, and the Android adaptive icon with a monochrome layer for themed icons. `scripts/build-splash-logo.py` makes the light and dark splash wordmarks from `assets/first-report-logo-light.png`. The command is in each script's header. Android 12+ shows the splash logo inside a 192dp circle, so it is 184dp wide there and 260dp on iOS. After changing them, regenerate the native project: `npx expo prebuild -p android --clean`.
-
-Gesture handler, Reanimated and pager-view are native modules, so the app needs a development build (`npx expo run:android` from `apps/mobile`) if Expo Go does not have matching versions.
 
 The UI follows the artboard in [`packages/designs`](packages/designs). Light colours, type sizes and spacing are copied from it into `src/theme/tokens.ts`; dark values are derived. The headline font is a static cut of Newsreader at optical size 26 (`assets/fonts`), because the Google Fonts package only ships optical size 16.
 
