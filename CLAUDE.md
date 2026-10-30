@@ -26,7 +26,7 @@ FirstReport shows news as full-screen cards:
   - Center (default) \= **Neutral** fact-based summary (green badge)  
   - Swipe right \= **Left-wing** perspective (red badge)  
   - Swipe left \= **Right-wing** perspective (purple badge)  
-  - If the story is **not contested** (accident, weather, sports result, obituary, science), only the Neutral card exists. Show a **"Facts only"** badge and disable horizontal swipe.  
+  - If the story is **not contested** (accident, weather, sports result, obituary, science), only the Neutral card exists: show just the news text, with no perspective tabs or badge, and disable horizontal swipe.  
 - **Every text is at most 60 words.**  
 - **Action bar on each card:**  
   - **History** (clock): the timeline of earlier events in the same storyline. Tapping one opens that card.  
@@ -49,7 +49,7 @@ FirstReport shows news as full-screen cards:
 | AI provider | **Google Gemini only** (embeddings \+ text generation). No other paid AI. |
 | Perspectives | **Fully AI-generated** by Gemini from the Event's merged facts. Fact-locked: no facts, numbers or quotes beyond the sources. |
 | AI label | **Not shown at launch**, behind config flag `SHOW_AI_LABEL` (default `false`) |
-| Uncontested news | Neutral only, swipe disabled, "Facts only" badge |
+| Uncontested news | Neutral only, swipe disabled, no tabs or badge |
 | Storylines | Automatic: embeddings \+ a Gemini yes/no for borderline cases. No human curation. |
 | Card updates | Rewrite a published card only on a **material change** (new facts), **max 3 rewrites** per Event |
 | Summary | Updated **incrementally** whenever a Story gets a new Event; **one stored version per Event** |
@@ -330,8 +330,8 @@ Admin (server-rendered HTML, HTTP basic auth via `ADMIN_USER`/`ADMIN_PASSWORD`, 
 The UI follows the design artboard in `packages/designs` (a reference mockup: copy its values into `src/theme/tokens.ts`, not its markup). It replaces the original side menu with a top category strip and a bottom bar.
 
 - **Layout:** a category strip on top ("Top stories" \= all categories, then National, Business, Technology, Sports, Entertainment, World), the feed, and a bottom bar with Explore · Home · Account (icons only).  
-- **Feed:** a vertical pager of full-screen cards. Image on top with "Photo: {outlet}" credit, then a 2px progress bar (position among the category's cards from the last 24 h, `windowTotal`), then a meta line (category · age · source count), the headline, and the perspective pane. Infinite scroll via cursor. Coming back after 10 minutes resets to the newest card. On short screens only the image shrinks.  
-- **Perspective pane:** a tab row (Left-leaning · Neutral · Right-leaning) over a horizontal swipe, Left ← Neutral → Right. The underline follows the finger in the pane's colour (Neutral green from the design; Left red and Right purple as in §1). The inactive tabs pulse on the first 3 contested cards. If `contested = false`: the same row reads "Facts only", and horizontal swipe is disabled. If `/v1/config.showAiLabel` is true, show a small "AI-generated viewpoint" tag on the left/right panes.  
+- **Feed:** a vertical pager of full-screen cards. Image on top with "Photo: {outlet}" credit, then a 2px progress bar (position among the category's cards from the last 24 h, `windowTotal`), then the headline, a line under it with the age on the left and tiny overlapping outlet logos on the right (up to 3, then "+N more"; a monogram when a logo fails to load), and the perspective pane. No category label on the card. Infinite scroll via cursor. Coming back after 10 minutes resets to the newest card. On short screens only the image shrinks.  
+- **Perspective pane:** a tab row (Left-leaning · Neutral · Right-leaning) over a horizontal swipe, Left ← Neutral → Right. The underline follows the finger in the pane's colour (Neutral green from the design; Left red and Right purple as in §1). The inactive tabs pulse on the first 3 contested cards. If `contested = false`: no tab row at all, just the neutral text, and horizontal swipe is disabled. If `/v1/config.showAiLabel` is true, show a small "AI-generated viewpoint" tag on the left/right panes.  
 - **Action bar:** hidden until the card is tapped; it hides again on the next card. History (bottom sheet with the timeline; tapping an item opens that Event as a modal card), Story so far (bottom sheet, fetched with `asOf` \= the current Event), Source (opens the top source URL), Share (native share with headline \+ current pane text \+ app link). History/Story so far hidden when `story.eventCount <= 1`.  
 - **Account:** dark mode toggle (the app follows the system until then), an "About perspectives" screen (static text explaining how cards are made). **Explore** has no content yet.  
 - **Images:** expo-image with a per-category placeholder on error.  

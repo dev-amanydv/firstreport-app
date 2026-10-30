@@ -4,10 +4,18 @@ import { Image } from "expo-image";
 import { CATEGORY_SHORT_LABELS, type Category } from "@fr/shared";
 import { fonts, type Palette } from "../theme/tokens";
 
-type Props = { palette: Palette; uri: string | null; credit: string | null; category: Category; height: number; recyclingKey: string };
+type Props = {
+  palette: Palette;
+  uri: string | null;
+  credit: string | null;
+  category: Category;
+  height: number;
+  recyclingKey: string;
+  active: boolean;
+};
 
 // Hotlinked source image with an outlet credit; a quiet category "section front" when there is none.
-export function CardImage({ palette, uri, credit, category, height, recyclingKey }: Props) {
+export function CardImage({ palette, uri, credit, category, height, recyclingKey, active }: Props) {
   const [failed, setFailed] = useState(false);
   const showImage = uri !== null && !failed;
 
@@ -22,6 +30,7 @@ export function CardImage({ palette, uri, credit, category, height, recyclingKey
             contentFit="cover"
             transition={180}
             cachePolicy="memory-disk"
+            priority={active ? "high" : "normal"}
             onError={() => setFailed(true)}
             accessibilityIgnoresInvertColors
             accessible={false}

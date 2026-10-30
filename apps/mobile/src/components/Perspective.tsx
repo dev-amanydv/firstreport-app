@@ -14,7 +14,7 @@ import Animated, {
 } from "react-native-reanimated";
 import { scheduleOnRN } from "react-native-worklets";
 import * as Haptics from "expo-haptics";
-import { fonts, metrics, type Palette } from "../theme/tokens";
+import { fonts, metrics, TAP_SLOP, type Palette } from "../theme/tokens";
 
 // Pane order matches the tab order: swipe right for Left, swipe left for Right.
 export const PANES = ["left", "neutral", "right"] as const;
@@ -59,8 +59,9 @@ export function Perspective({ palette, width, contested, texts, showAiLabel, hin
 
   const pan = usePanGesture({
     enabled: contested,
-    activeOffsetX: [-12, 12],
-    failOffsetY: [-10, 10],
+    // Clearly horizontal drags only: a vertical swipe fails this long before it could activate.
+    activeOffsetX: [-20, 20],
+    failOffsetY: [-8, 8],
     onActivate: () => {
       start.value = position.value;
     },
@@ -77,7 +78,7 @@ export function Perspective({ palette, width, contested, texts, showAiLabel, hin
       scheduleOnRN(settle, target);
     },
   });
-  const tap = useTapGesture({ runOnJS: true, onActivate: onTap });
+  const tap = useTapGesture({ maxDistance: TAP_SLOP.maxDistance, maxDuration: TAP_SLOP.maxDuration, runOnJS: true, onActivate: onTap });
   const gesture = useCompetingGestures(pan, tap);
 
   const goTo = (next: number) => {
@@ -89,16 +90,10 @@ export function Perspective({ palette, width, contested, texts, showAiLabel, hin
 
   return (
     <>
+      {/* Uncontested news is just the facts: no tab row, no swipe. */}
       {contested ? (
         <Tabs palette={palette} width={width} position={position} index={index} hintOpacity={hintOpacity} onSelect={goTo} />
-      ) : (
-        <View style={[styles.tabs, { boxShadow: `inset 0 -1px 0 ${palette.hairline}` }]}>
-          <View style={styles.factsOnly} accessibilityRole="text" accessibilityLabel="Facts only. This story has no opposing perspectives.">
-            <View style={[styles.square, { backgroundColor: palette.neutral }]} />
-            <Text style={[styles.tabLabel, { color: palette.ink, fontFamily: fonts.semibold }]}>Facts only</Text>
-          </View>
-        </View>
-      )}
+      ) : null}
       <GestureDetector gesture={gesture}>
         <View style={styles.viewport} collapsable={false}>
           <Animated.View style={[styles.panes, { width: width * 3 }, panesStyle]}>
@@ -186,7 +181,6 @@ function Tab({ i, label, colour, palette, position, selected, hintOpacity, onPre
 const styles = StyleSheet.create({
   tabs: { marginTop: 12, height: metrics.tabsHeight, flexDirection: "row" },
   tab: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center" },
-  factsOnly: { flexDirection: "row", alignItems: "center", gap: 6 },
   square: { width: 7, height: 7 },
   tabLabel: { fontSize: 13, includeFontPadding: false },
   underline: { position: "absolute", left: 0, bottom: 0, height: 2 },

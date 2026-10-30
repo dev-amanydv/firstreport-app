@@ -23,6 +23,8 @@ export function useFeed(category: Category | null) {
     },
     initialPageParam: null as string | null,
     getNextPageParam: (last) => last.nextCursor,
+    // A refetch would put new cards on top and move the reader's card; Feed resets after a long absence instead.
+    refetchOnWindowFocus: false,
   });
 }
 

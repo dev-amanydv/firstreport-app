@@ -12,6 +12,9 @@ export const light = {
   creditChip: "rgba(0,0,0,0.62)",
   creditText: "#FFFFFF",
   placeholderInk: "rgba(0,0,0,0.09)",
+  // Outlet logos sit on white in both themes, so dark-on-transparent favicons stay visible.
+  logoBg: "#FFFFFF",
+  logoEdge: "rgba(0,0,0,0.12)",
   neutral: "#1B7A4B",
   left: "#B3362B",
   right: "#6B3FA0",
@@ -30,6 +33,8 @@ export const dark: Palette = {
   creditChip: "rgba(0,0,0,0.62)",
   creditText: "#FFFFFF",
   placeholderInk: "rgba(255,255,255,0.07)",
+  logoBg: "#FFFFFF",
+  logoEdge: "rgba(255,255,255,0.16)",
   neutral: "#3FA674",
   left: "#E0675B",
   right: "#A585D6",
@@ -52,3 +57,7 @@ export const metrics = {
   actionBarHeight: 72,
   tabsHeight: 40,
 };
+
+// A tap only counts if the finger barely moves; otherwise a quick swipe would toggle the action bar.
+// Pass the fields one by one: the worklets Babel plugin rejects a spread in gesture-hook configs.
+export const TAP_SLOP = { maxDistance: 10, maxDuration: 250 };

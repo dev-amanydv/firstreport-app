@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { dark, light } from "../theme/tokens";
 import { contrast } from "./contrast";
-import { IMAGE_MAX, IMAGE_MIN, imageHeight, progress } from "./layout";
-import { metaLine } from "./meta";
+import { IMAGE_MAX, IMAGE_MIN, imageHeight, isRendered, progress } from "./layout";
 import { shareText } from "./share";
+import { initials, logoStack, logoStackLabel, logoUrl } from "./sources";
 import { relativeTime } from "./time";
 
 const now = Date.parse("2026-10-29T10:00:00Z");
@@ -20,19 +20,6 @@ describe("relativeTime", () => {
 
   it("never goes negative for a clock that runs ahead", () => {
     expect(relativeTime(ago(-60_000), now)).toBe("just now");
-  });
-});
-
-describe("metaLine", () => {
-  const source = { name: "The Hindu", url: "https://x.test" };
-  it("joins category, age and source count", () => {
-    expect(metaLine({ category: "national", firstSeenAt: ago(42 * 60_000), sources: [source, source, source] }, now)).toBe(
-      "National · 42 min ago · 3 sources",
-    );
-  });
-
-  it("drops the category for other and the count for a single source", () => {
-    expect(metaLine({ category: "other", firstSeenAt: ago(5 * 60_000), sources: [source] }, now)).toBe("5 min ago");
   });
 });
 
@@ -56,6 +43,14 @@ describe("progress", () => {
   });
 });
 
+describe("isRendered", () => {
+  it("mounts two cards behind and two ahead", () => {
+    const mounted = Array.from({ length: 10 }, (_, page) => page).filter((page) => isRendered(page, 4));
+    expect(mounted).toEqual([2, 3, 4, 5, 6]);
+    expect([0, 1, 2, 3].filter((page) => isRendered(page, 0))).toEqual([0, 1, 2]);
+  });
+});
+
 describe("shareText", () => {
   it("includes headline, the pane text and the app link", () => {
     expect(shareText("H", "Body")).toBe("H\n\nBody\n\nRead on FirstReport: https://firstreport.in");
@@ -69,5 +64,31 @@ describe("perspective colours", () => {
         expect(contrast(colour, palette.card)).toBeGreaterThanOrEqual(3);
       }
     }
+  });
+});
+
+describe("source logos", () => {
+  const src = (name: string) => ({ name, url: `https://www.${name.replace(/\s/g, "").toLowerCase()}.com/a/1` });
+
+  it("builds monograms from outlet names", () => {
+    expect(initials("Indian Express")).toBe("IE");
+    expect(initials("The Hindu")).toBe("H");
+    expect(initials("NDTV")).toBe("N");
+    expect(initials("Hindustan Times Live Desk")).toBe("HT");
+  });
+
+  it("asks for the favicon by bare host, and gives up on a bad URL", () => {
+    expect(logoUrl("https://www.thehindu.com/news/x")).toBe("https://www.google.com/s2/favicons?domain=thehindu.com&sz=64");
+    expect(logoUrl("https://m.ndtv.com/x")).toContain("domain=ndtv.com");
+    expect(logoUrl("not a url")).toBeNull();
+  });
+
+  it("shows three logos and folds the rest into +N", () => {
+    const five = ["A", "B", "C", "D", "E"].map(src);
+    expect(logoStack(five)).toEqual({ shown: five.slice(0, 3), extra: 2 });
+    expect(logoStackLabel(five)).toBe("Reported by A, B, C and 2 more");
+    expect(logoStack(five.slice(0, 3)).extra).toBe(0);
+    expect(logoStackLabel([src("The Hindu")])).toBe("Reported by The Hindu");
+    expect(logoStackLabel([src("A"), src("B")])).toBe("Reported by A and B");
   });
 });

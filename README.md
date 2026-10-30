@@ -104,8 +104,18 @@ The app reads only the public `/v1` API and holds no secrets. Expo reads its `.e
 ```sh
 echo "EXPO_PUBLIC_API_BASE_URL=http://10.0.2.2:3000" > apps/mobile/.env   # Android emulator → host; use your LAN IP for a phone
 pnpm api:start
-pnpm mobile                   # then press a (Android) or i (iOS)
+pnpm mobile                   # then open the installed app on the phone
 ```
+
+**Phone over Wi‑Fi adb.** Pair once (Developer options → Wireless debugging → Pair device with pairing code, then `adb pair <ip:port>`). After that adb reconnects by itself, so skip `adb connect`. Each session, route the phone's localhost to the Mac:
+
+```sh
+adb devices                          # one line per phone; if it is listed twice, add -s <serial> below
+adb reverse tcp:3077 tcp:3077        # API (the README uses PORT=3077 when 3000 is taken)
+adb reverse tcp:8081 tcp:8081        # Metro
+```
+
+The reverse rules are lost whenever the connection drops; "Couldn't load the news." on the phone usually means they need re-running. Judge smoothness on a release build (`pnpm exec expo run:android --variant release --device`): a debug build runs JavaScript unoptimised.
 
 Gesture handler, Reanimated and pager-view are native modules, so the app needs a development build (`npx expo run:android` from `apps/mobile`) if Expo Go does not have matching versions.
 

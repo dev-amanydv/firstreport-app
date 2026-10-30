@@ -1,31 +1,34 @@
-import { useEffect, useState } from "react";
+import { memo, useEffect, useState } from "react";
 import { Share, StyleSheet, Text, View } from "react-native";
 import { GestureDetector, useTapGesture } from "react-native-gesture-handler";
 import * as WebBrowser from "expo-web-browser";
 import type { CardPayload } from "@fr/shared";
 import { markHintShown, shouldHint } from "../hints";
-import { imageHeight, progress } from "../lib/layout";
-import { metaLine } from "../lib/meta";
+import { imageHeight } from "../lib/layout";
 import { shareText } from "../lib/share";
-import { fonts, metrics, type Palette } from "../theme/tokens";
+import { relativeTime } from "../lib/time";
+import { fonts, metrics, TAP_SLOP, type Palette } from "../theme/tokens";
 import { ActionBar } from "./ActionBar";
 import { CardImage } from "./CardImage";
 import { Perspective, type Pane } from "./Perspective";
+import { SourceLogos } from "./SourceLogos";
 
 type Props = {
   card: CardPayload;
   palette: Palette;
   width: number;
   height: number;
-  index: number;
-  windowTotal: number;
+  // 0–1 position in the feed, and its spoken form ("Story 4 of 12").
+  progress: number;
+  progressLabel: string;
   active: boolean;
   showAiLabel: boolean;
 };
 
 const CONTENT_PADDING = 16;
 
-export function Card({ card, palette, width, height, index, windowTotal, active, showAiLabel }: Props) {
+// Memoised: on a page swipe only the two cards whose `active` flips re-render.
+export const Card = memo(function Card({ card, palette, width, height, progress, progressLabel, active, showAiLabel }: Props) {
   const [actionsVisible, setActionsVisible] = useState(false);
   const [pane, setPane] = useState<Pane>("neutral");
   const [hint, setHint] = useState(false);
@@ -43,10 +46,9 @@ export function Card({ card, palette, width, height, index, windowTotal, active,
   }, [active, card.contested, hint]);
 
   const toggleActions = () => setActionsVisible((visible) => !visible);
-  const tap = useTapGesture({ runOnJS: true, onActivate: toggleActions });
+  const tap = useTapGesture({ maxDistance: TAP_SLOP.maxDistance, maxDuration: TAP_SLOP.maxDuration, runOnJS: true, onActivate: toggleActions });
 
   const texts = { neutral: card.neutral, left: card.left ?? card.neutral, right: card.right ?? card.neutral };
-  const fraction = progress(index, windowTotal);
   const source = card.sources[0];
 
   return (
@@ -60,16 +62,16 @@ export function Card({ card, palette, width, height, index, windowTotal, active,
             category={card.category}
             height={imageHeight(height)}
             recyclingKey={card.id}
+            active={active}
           />
           <View
             style={[styles.track, { backgroundColor: palette.hairline }]}
             accessibilityRole="progressbar"
-            accessibilityLabel={`Story ${index + 1} of ${Math.max(windowTotal, index + 1)}`}
+            accessibilityLabel={progressLabel}
           >
-            <View style={[styles.fill, { width: `${fraction * 100}%`, backgroundColor: palette.ink }]} />
+            <View style={[styles.fill, { width: `${progress * 100}%`, backgroundColor: palette.ink }]} />
           </View>
           <View style={styles.header}>
-            <Text style={[styles.meta, { color: palette.muted }]}>{metaLine(card)}</Text>
             <Text
               style={[styles.headline, { color: palette.ink }]}
               numberOfLines={3}
@@ -79,6 +81,10 @@ export function Card({ card, palette, width, height, index, windowTotal, active,
             >
               {card.headline}
             </Text>
+            <View style={styles.byline}>
+              <Text style={[styles.date, { color: palette.muted }]}>{relativeTime(card.firstSeenAt)}</Text>
+              <SourceLogos palette={palette} sources={card.sources} />
+            </View>
           </View>
         </View>
       </GestureDetector>
@@ -108,28 +114,21 @@ export function Card({ card, palette, width, height, index, windowTotal, active,
       />
     </View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   card: { borderRadius: metrics.cardRadius, overflow: "hidden" },
   track: { height: 2 },
   fill: { height: 2 },
   header: { paddingTop: 14, paddingHorizontal: CONTENT_PADDING },
-  meta: {
-    fontFamily: fonts.semibold,
-    fontSize: 11,
-    lineHeight: 16,
-    letterSpacing: 0.88,
-    textTransform: "uppercase",
-    includeFontPadding: false,
-  },
   headline: {
     fontFamily: fonts.headline,
     fontSize: 26,
     lineHeight: 30,
     letterSpacing: -0.39,
-    marginTop: 8,
     includeFontPadding: false,
   },
+  byline: { marginTop: 8, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
+  date: { fontFamily: fonts.medium, fontSize: 12, lineHeight: 16, includeFontPadding: false },
   body: { flex: 1, paddingHorizontal: CONTENT_PADDING },
 });

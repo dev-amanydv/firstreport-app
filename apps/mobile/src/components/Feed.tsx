@@ -1,10 +1,11 @@
-import { useEffect, useRef, useState } from "react";
+import { startTransition, useEffect, useMemo, useRef, useState } from "react";
 import { AppState, Pressable, StyleSheet, Text, View, type LayoutChangeEvent } from "react-native";
 import PagerView from "react-native-pager-view";
+import { Image } from "expo-image";
 import { useQueryClient } from "@tanstack/react-query";
 import { CATEGORY_SHORT_LABELS } from "@fr/shared";
 import { useAppConfig, useFeed } from "../api/client";
-import { imageHeight } from "../lib/layout";
+import { imageHeight, isRendered, progress, RENDER_AHEAD } from "../lib/layout";
 import { fonts, metrics, type Palette } from "../theme/tokens";
 import { Card } from "./Card";
 import type { FeedCategory } from "./CategoryStrip";
@@ -49,12 +50,22 @@ export function Feed({ palette, category }: Props) {
     setSize((old) => (old?.width === width && old.height === height ? old : { width, height }));
   };
 
-  const items = feed.data?.pages.flatMap((page) => page.items) ?? [];
+  const items = useMemo(() => feed.data?.pages.flatMap((page) => page.items) ?? [], [feed.data]);
   const windowTotal = feed.data?.pages[0]?.windowTotal ?? 0;
 
+  // The next cards' photos are downloaded before they are swiped in.
+  useEffect(() => {
+    const upcoming = items.slice(index + 1, index + 1 + RENDER_AHEAD).flatMap((card) => (card.imageUrl ? [card.imageUrl] : []));
+    if (upcoming.length) void Image.prefetch(upcoming, "memory-disk");
+  }, [index, items]);
+
+  // Nothing here may hold up the pager while it settles: the re-render is a transition,
+  // and the next page is requested after the frame.
   const onPageSelected = (position: number) => {
-    setIndex(position);
-    if (position >= items.length - PREFETCH_FROM_END && feed.hasNextPage && !feed.isFetchingNextPage) void feed.fetchNextPage();
+    startTransition(() => setIndex(position));
+    if (position >= items.length - PREFETCH_FROM_END && feed.hasNextPage && !feed.isFetchingNextPage) {
+      requestAnimationFrame(() => void feed.fetchNextPage());
+    }
   };
 
   let content;
@@ -74,21 +85,23 @@ export function Feed({ palette, category }: Props) {
         orientation="vertical"
         offscreenPageLimit={1}
         pageMargin={metrics.cardInset}
-        overdrag
         onPageSelected={(event) => onPageSelected(event.nativeEvent.position)}
       >
+        {/* Every item keeps its page; only the ones next to the current card are mounted. */}
         {items.map((card, i) => (
           <View key={card.id} style={styles.page}>
-            <Card
-              card={card}
-              palette={palette}
-              width={size.width - metrics.cardInset * 2}
-              height={size.height}
-              index={i}
-              windowTotal={windowTotal}
-              active={i === index}
-              showAiLabel={config.data?.showAiLabel ?? false}
-            />
+            {isRendered(i, index) ? (
+              <Card
+                card={card}
+                palette={palette}
+                width={size.width - metrics.cardInset * 2}
+                height={size.height}
+                progress={progress(i, windowTotal)}
+                progressLabel={`Story ${i + 1} of ${Math.max(windowTotal, i + 1)}`}
+                active={i === index}
+                showAiLabel={config.data?.showAiLabel ?? false}
+              />
+            ) : null}
           </View>
         ))}
       </PagerView>
@@ -112,9 +125,9 @@ function Skeleton({ palette, height }: { palette: Palette; height: number }) {
     <Frame palette={palette}>
       <View style={[{ height: imageHeight(height) + 2 }, block]} />
       <View style={styles.skeletonBody} accessibilityLabel="Loading the news">
-        <View style={[styles.bar, block, { width: 150, height: 11 }]} />
-        <View style={[styles.bar, block, { marginTop: 13, height: 22 }]} />
+        <View style={[styles.bar, block, { marginTop: 4, height: 22 }]} />
         <View style={[styles.bar, block, { marginTop: 8, height: 22, width: "62%" }]} />
+        <View style={[styles.bar, block, { marginTop: 14, height: 12, width: 90 }]} />
         <View style={[{ marginTop: 16, height: 40, borderBottomWidth: 1, borderBottomColor: palette.hairline }]} />
         {[100, 96, 100, 88, 100, 70].map((w, i) => (
           <View key={i} style={[styles.bar, block, { marginTop: i === 0 ? 16 : 12, height: 14, width: `${w}%` }]} />
