@@ -96,8 +96,7 @@ export function Feed({ palette, category }: Props) {
                 palette={palette}
                 width={size.width - metrics.cardInset * 2}
                 height={size.height}
-                progress={progress(i, windowTotal)}
-                progressLabel={`Story ${i + 1} of ${Math.max(windowTotal, i + 1)}`}
+                progress={{ value: progress(i, windowTotal), label: `Story ${i + 1} of ${Math.max(windowTotal, i + 1)}` }}
                 active={i === index}
                 showAiLabel={config.data?.showAiLabel ?? false}
               />
@@ -119,7 +118,7 @@ function Frame({ palette, children }: { palette: Palette; children: React.ReactN
 }
 
 // Flat blocks in the exact layout of a real card, so nothing jumps when it arrives.
-function Skeleton({ palette, height }: { palette: Palette; height: number }) {
+export function Skeleton({ palette, height }: { palette: Palette; height: number }) {
   const block = { backgroundColor: palette.hairline };
   return (
     <Frame palette={palette}>
@@ -139,7 +138,7 @@ function Skeleton({ palette, height }: { palette: Palette; height: number }) {
 
 type MessageProps = { palette: Palette; title: string; action?: { label: string; onPress: () => void } };
 
-function Message({ palette, title, action }: MessageProps) {
+export function Message({ palette, title, action }: MessageProps) {
   return (
     <Frame palette={palette}>
       <View style={styles.message}>

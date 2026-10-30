@@ -53,6 +53,15 @@ export function ShareIcon({ color, size = 22 }: IconProps) {
   );
 }
 
+export function CloseIcon({ color, size = 24 }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" {...stroke(color)}>
+      <Line x1="6" x2="18" y1="6" y2="18" />
+      <Line x1="18" x2="6" y1="6" y2="18" />
+    </Svg>
+  );
+}
+
 export function CompassIcon({ color, size = 24 }: IconProps) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" {...stroke(color)}>

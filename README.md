@@ -13,7 +13,7 @@ The full product and engineering brief is in [`CLAUDE.md`](CLAUDE.md).
 | M3 Cards | ✅ prompt v2 |
 | M4 Stories, summaries, nightly job, budget brake | ✅ (R2 backup and alert webhook moved to M7) |
 | M5 API + admin | ✅ built; gate pending (7 days unattended under $1.50/day) |
-| M6 Mobile app | in progress: the home screen is built; History, Story so far and Account come next |
+| M6 Mobile app | in progress: the home screen, History and Story so far are built; Account comes next |
 | M7 Hardening, M8 Closed beta | not started |
 
 ## Repo layout

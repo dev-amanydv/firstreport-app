@@ -4,7 +4,7 @@ import { contrast } from "./contrast";
 import { IMAGE_MAX, IMAGE_MIN, imageHeight, isRendered, progress } from "./layout";
 import { shareText } from "./share";
 import { initials, logoStack, logoStackLabel, logoUrl } from "./sources";
-import { relativeTime } from "./time";
+import { relativeTime, storyDate } from "./time";
 
 const now = Date.parse("2026-10-29T10:00:00Z");
 const ago = (ms: number) => new Date(now - ms).toISOString();
@@ -20,6 +20,14 @@ describe("relativeTime", () => {
 
   it("never goes negative for a clock that runs ahead", () => {
     expect(relativeTime(ago(-60_000), now)).toBe("just now");
+  });
+});
+
+describe("storyDate", () => {
+  it("is the IST date and time, with the year only for other years", () => {
+    expect(storyDate("2026-10-29T11:00:00Z", now)).toBe("29 Oct, 4:30 pm");
+    expect(storyDate("2026-10-28T18:45:00Z", now)).toBe("29 Oct, 12:15 am");
+    expect(storyDate("2025-12-31T06:30:00Z", now)).toBe("31 Dec 2025, 12:00 pm");
   });
 });
 

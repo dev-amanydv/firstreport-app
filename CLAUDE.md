@@ -7,7 +7,7 @@ You are the engineering partner on **FirstReport**, a mobile-first Indian news a
 ## 0\. Current status (keep this section up to date)
 
 - **Done:** M1 (ingest), M2 (embeddings + Events, thresholds tuned from labelled data), M3 (cards, prompt v2), M4 (Stories, summaries, material-change rewrites, budget brake, nightly job). M5 is built (`apps/api`: public `/v1` API, admin, cost page), and the worker and API run under Docker Compose (`--profile app`).
-- **In progress:** M6. The home screen is built in `apps/mobile` (Expo SDK 58), following the design in `packages/designs`. Next: the History and Story-so-far sheets, then Account (dark-mode toggle, About perspectives). The M5 gate (7 days unattended under $1.50/day) still has to be run.
+- **In progress:** M6. The home screen and the History and Story-so-far sheets are built in `apps/mobile` (Expo SDK 58), following the design in `packages/designs`. Next: Account (dark-mode toggle, About perspectives). The M5 gate (7 days unattended under $1.50/day) still has to be run.
 - **Still open from M4:** the nightly `pg_dump` → R2 upload and the alert webhook are deferred to M7. Alerts are only logged (`ALERT:` lines) for now.
 - **Still yours:** the 13 `TODO` feed URLs in the seed.
 - **Dev runs on the Gemini free tier** (`GEMINI_FREE_TIER`, on unless set to `false`). That is why the code has daily request caps, a daily article cap and fewer seeded feeds. Production sets `GEMINI_FREE_TIER=false`. See §6, "Free-tier and cost guards".

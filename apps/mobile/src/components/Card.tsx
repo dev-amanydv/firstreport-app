@@ -1,6 +1,7 @@
 import { memo, useEffect, useState } from "react";
 import { Share, StyleSheet, Text, View } from "react-native";
 import { GestureDetector, useTapGesture } from "react-native-gesture-handler";
+import { router } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
 import type { CardPayload } from "@fr/shared";
 import { markHintShown, shouldHint } from "../hints";
@@ -10,17 +11,18 @@ import { relativeTime } from "../lib/time";
 import { fonts, metrics, TAP_SLOP, type Palette } from "../theme/tokens";
 import { ActionBar } from "./ActionBar";
 import { CardImage } from "./CardImage";
+import { HistorySheet } from "./HistorySheet";
 import { Perspective, type Pane } from "./Perspective";
 import { SourceLogos } from "./SourceLogos";
+import { SummarySheet } from "./SummarySheet";
 
 type Props = {
   card: CardPayload;
   palette: Palette;
   width: number;
   height: number;
-  // 0–1 position in the feed, and its spoken form ("Story 4 of 12").
-  progress: number;
-  progressLabel: string;
+  // 0–1 position in the feed and its spoken form ("Story 4 of 12"); null outside the feed.
+  progress: { value: number; label: string } | null;
   active: boolean;
   showAiLabel: boolean;
 };
@@ -28,14 +30,17 @@ type Props = {
 const CONTENT_PADDING = 16;
 
 // Memoised: on a page swipe only the two cards whose `active` flips re-render.
-export const Card = memo(function Card({ card, palette, width, height, progress, progressLabel, active, showAiLabel }: Props) {
+export const Card = memo(function Card({ card, palette, width, height, progress, active, showAiLabel }: Props) {
   const [actionsVisible, setActionsVisible] = useState(false);
   const [pane, setPane] = useState<Pane>("neutral");
   const [hint, setHint] = useState(false);
+  const [sheet, setSheet] = useState<"history" | "summary" | null>(null);
 
-  // The action bar belongs to the card being read; it hides as soon as you move on.
+  // The action bar and its sheets belong to the card being read; they close as soon as you move on.
   useEffect(() => {
-    if (!active) setActionsVisible(false);
+    if (active) return;
+    setActionsVisible(false);
+    setSheet(null);
   }, [active]);
 
   useEffect(() => {
@@ -50,6 +55,7 @@ export const Card = memo(function Card({ card, palette, width, height, progress,
 
   const texts = { neutral: card.neutral, left: card.left ?? card.neutral, right: card.right ?? card.neutral };
   const source = card.sources[0];
+  const closeSheet = () => setSheet(null);
 
   return (
     <View style={[styles.card, { height, backgroundColor: palette.card }]}>
@@ -66,10 +72,10 @@ export const Card = memo(function Card({ card, palette, width, height, progress,
           />
           <View
             style={[styles.track, { backgroundColor: palette.hairline }]}
-            accessibilityRole="progressbar"
-            accessibilityLabel={progressLabel}
+            accessibilityRole={progress ? "progressbar" : undefined}
+            accessibilityLabel={progress?.label}
           >
-            <View style={[styles.fill, { width: `${progress * 100}%`, backgroundColor: palette.ink }]} />
+            {progress ? <View style={[styles.fill, { width: `${progress.value * 100}%`, backgroundColor: palette.ink }]} /> : null}
           </View>
           <View style={styles.header}>
             <Text
@@ -106,12 +112,35 @@ export const Card = memo(function Card({ card, palette, width, height, progress,
         palette={palette}
         visible={actionsVisible}
         eventCount={card.story?.eventCount ?? 1}
-        // TODO(M6 history): open the timeline and summary bottom sheets.
-        onHistory={() => {}}
-        onSummary={() => {}}
+        onHistory={() => setSheet("history")}
+        onSummary={() => setSheet("summary")}
         onSource={source ? () => void WebBrowser.openBrowserAsync(source.url) : null}
         onShare={() => void Share.share({ message: shareText(card.headline, texts[pane]) })}
       />
+
+      {card.story && card.story.eventCount > 1 ? (
+        <>
+          <HistorySheet
+            palette={palette}
+            visible={sheet === "history"}
+            storyId={card.story.id}
+            currentId={card.id}
+            onClose={closeSheet}
+            onOpen={(id) => {
+              closeSheet();
+              router.push({ pathname: "/event/[id]", params: { id } });
+            }}
+          />
+          <SummarySheet
+            palette={palette}
+            visible={sheet === "summary"}
+            storyId={card.story.id}
+            eventId={card.id}
+            eventAt={card.firstSeenAt}
+            onClose={closeSheet}
+          />
+        </>
+      ) : null}
     </View>
   );
 });

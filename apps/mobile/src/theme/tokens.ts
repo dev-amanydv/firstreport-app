@@ -12,6 +12,7 @@ export const light = {
   creditChip: "rgba(0,0,0,0.62)",
   creditText: "#FFFFFF",
   placeholderInk: "rgba(0,0,0,0.09)",
+  scrim: "rgba(0,0,0,0.4)",
   // Outlet logos sit on white in both themes, so dark-on-transparent favicons stay visible.
   logoBg: "#FFFFFF",
   logoEdge: "rgba(0,0,0,0.12)",
@@ -33,6 +34,7 @@ export const dark: Palette = {
   creditChip: "rgba(0,0,0,0.62)",
   creditText: "#FFFFFF",
   placeholderInk: "rgba(255,255,255,0.07)",
+  scrim: "rgba(0,0,0,0.6)",
   logoBg: "#FFFFFF",
   logoEdge: "rgba(255,255,255,0.16)",
   neutral: "#3FA674",
@@ -56,6 +58,7 @@ export const metrics = {
   navGap: 4,
   actionBarHeight: 72,
   tabsHeight: 40,
+  sheetRadius: 20,
 };
 
 // A tap only counts if the finger barely moves; otherwise a quick swipe would toggle the action bar.
