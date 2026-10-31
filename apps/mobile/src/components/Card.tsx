@@ -1,18 +1,18 @@
-import { memo, useEffect, useState } from "react";
-import { Share, StyleSheet, Text, View } from "react-native";
+import { memo, useCallback, useEffect, useState } from "react";
+import { StyleSheet, Text, View } from "react-native";
 import { GestureDetector, useTapGesture } from "react-native-gesture-handler";
 import { router } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
 import type { CardPayload } from "@fr/shared";
 import { markHintShown, shouldHint } from "../hints";
 import { imageHeight } from "../lib/layout";
-import { shareText } from "../lib/share";
 import { relativeTime } from "../lib/time";
 import { fonts, metrics, TAP_SLOP, type Palette } from "../theme/tokens";
 import { ActionBar } from "./ActionBar";
 import { CardImage } from "./CardImage";
 import { HistorySheet } from "./HistorySheet";
 import { Perspective, type Pane } from "./Perspective";
+import { ShareCard } from "./ShareCard";
 import { SourceLogos } from "./SourceLogos";
 import { SummarySheet } from "./SummarySheet";
 
@@ -35,6 +35,8 @@ export const Card = memo(function Card({ card, palette, width, height, progress,
   const [pane, setPane] = useState<Pane>("neutral");
   const [hint, setHint] = useState(false);
   const [sheet, setSheet] = useState<"history" | "summary" | null>(null);
+  // The pane being shared while its picture is captured; null when not sharing.
+  const [sharing, setSharing] = useState<Pane | null>(null);
 
   // The action bar and its sheets belong to the card being read; they close as soon as you move on.
   useEffect(() => {
@@ -56,6 +58,7 @@ export const Card = memo(function Card({ card, palette, width, height, progress,
   const texts = { neutral: card.neutral, left: card.left ?? card.neutral, right: card.right ?? card.neutral };
   const source = card.sources[0];
   const closeSheet = () => setSheet(null);
+  const doneSharing = useCallback(() => setSharing(null), []);
 
   return (
     <View style={[styles.card, { height, backgroundColor: palette.card }]}>
@@ -115,8 +118,10 @@ export const Card = memo(function Card({ card, palette, width, height, progress,
         onHistory={() => setSheet("history")}
         onSummary={() => setSheet("summary")}
         onSource={source ? () => void WebBrowser.openBrowserAsync(source.url) : null}
-        onShare={() => void Share.share({ message: shareText(card.headline, texts[pane]) })}
+        onShare={() => setSharing((current) => current ?? pane)}
       />
+
+      {sharing ? <ShareCard card={card} pane={sharing} text={texts[sharing]} onDone={doneSharing} /> : null}
 
       {card.story && card.story.eventCount > 1 ? (
         <>
