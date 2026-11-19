@@ -6,15 +6,15 @@ The full product and engineering brief is in [`CLAUDE.md`](CLAUDE.md).
 
 ## Status
 
-| Milestone | State |
-| :-- | :-- |
-| M1 Repo + ingest | ✅ |
-| M2 Embeddings + Events | ✅ thresholds tuned from labelled pairs |
-| M3 Cards | ✅ prompt v2 |
-| M4 Stories, summaries, nightly job, budget brake | ✅ (R2 backup and alert webhook moved to M7) |
-| M5 API + admin | ✅ built; gate pending (7 days unattended under $1.50/day) |
-| M6 Mobile app | in progress: the home screen, History and Story so far are built; Account comes next |
-| M7 Hardening, M8 Closed beta | not started |
+| Milestone                                        | State                                                                                |
+| :----------------------------------------------- | :----------------------------------------------------------------------------------- |
+| M1 Repo + ingest                                 | ✅                                                                                   |
+| M2 Embeddings + Events                           | ✅ thresholds tuned from labelled pairs                                              |
+| M3 Cards                                         | ✅ prompt v2                                                                         |
+| M4 Stories, summaries, nightly job, budget brake | ✅ (R2 backup and alert webhook moved to M7)                                         |
+| M5 API + admin                                   | ✅ built; gate pending (7 days unattended under $1.50/day)                           |
+| M6 Mobile app                                    | in progress: the home screen, History and Story so far are built; Account comes next |
+| M7 Hardening, M8 Closed beta                     | not started                                                                          |
 
 ## Repo layout
 
@@ -51,30 +51,32 @@ data/                labels, card reports (git-ignored)
 
 This walks through the whole stack on one Mac: Postgres in Docker, then the worker, the API and the mobile app running from source. All commands run from the repo root unless a step says otherwise. Once everything is set up you will have four terminals open:
 
-| Terminal | Command | Purpose |
-| :-- | :-- | :-- |
-| 1 | `docker compose up -d` (runs in the background) | Postgres 16 + pgvector on `localhost:5432` |
-| 2 | `pnpm worker:start` | Pipeline: a tick every 15 min, nightly job at 02:30 IST, admin regen jobs |
-| 3 | `pnpm api:start` | Public `/v1` API and `/admin` on `localhost:3000` |
-| 4 | `pnpm mobile` | Expo / Metro bundler for the app |
+| Terminal | Command                                           | Purpose                                                                   |
+| :------- | :------------------------------------------------ | :------------------------------------------------------------------------ |
+| 1        | `docker compose up -d` (runs in the background) | Postgres 16 + pgvector on `localhost:5432`                              |
+| 2        | `pnpm worker:start`                             | Pipeline: a tick every 15 min, nightly job at 02:30 IST, admin regen jobs |
+| 3        | `pnpm api:start`                                | Public `/v1` API and `/admin` on `localhost:3000`                   |
+| 4        | `pnpm mobile`                                   | Expo / Metro bundler for the app                                          |
 
 ### 1. Install the prerequisites
 
-| Tool | Version | Check | Notes |
-| :-- | :-- | :-- | :-- |
-| Node.js | ≥ 24 | `node -v` | `nvm install 24` or `brew install node@24` |
-| pnpm | 12 (pinned to `pnpm@12.8.1` in `package.json`) | `pnpm -v` | `corepack enable`. Corepack then uses the pinned version automatically |
-| Docker | Docker Desktop (or OrbStack / Colima) | `docker compose version` | Must be running before step 3 |
-| Gemini API key | free tier is fine | | Create one at [aistudio.google.com/apikey](https://aistudio.google.com/apikey). Without it the worker only ingests (no Events beyond step 6, no cards), so the app has nothing to show |
+| Tool           | Version                                            | Check                      | Notes                                                                                                                                                                                 |
+| :------------- | :------------------------------------------------- | :------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Node.js        | ≥ 24                                              | `node -v`                | `nvm install 24` or `brew install node@24`                                                                                                                                        |
+| pnpm           | 12 (pinned to `pnpm@12.8.1` in `package.json`) | `pnpm -v`                | `corepack enable`. Corepack then uses the pinned version automatically                                                                                                              |
+| Docker         | Docker Desktop (or OrbStack / Colima)              | `docker compose version` | Must be running before step 3                                                                                                                                                         |
+| Gemini API key | free tier is fine                                  |                            | Create one at [aistudio.google.com/apikey](https://aistudio.google.com/apikey). Without it the worker only ingests (no Events beyond step 6, no cards), so the app has nothing to show |
 
 For the mobile app you also need one of these:
 
 - **Android (main target):** Android Studio with an Android SDK and platform tools, and JDK 17 (Android Studio's bundled JDK works). Put the SDK on your path, in `~/.zshrc`:
+
   ```sh
   export ANDROID_HOME="$HOME/Library/Android/sdk"
   export PATH="$PATH:$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator"
   export JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home"
   ```
+
   Then either create an emulator (Android Studio → Device Manager) or connect a phone with Developer options and USB / wireless debugging on. `adb devices` should list it.
 - **iOS simulator (optional):** Xcode with a simulator runtime installed, and CocoaPods (`brew install cocoapods`).
 
@@ -90,22 +92,22 @@ cp .env.example .env
 
 Edit the root `.env`. Every app (worker, API, db scripts) loads it with `--env-file-if-exists`:
 
-| Variable | Local value | Why |
-| :-- | :-- | :-- |
-| `DATABASE_URL` | `postgres://fr:fr@localhost:5432/fr` (already set) | Dev database created by compose |
-| `TEST_DATABASE_URL` | `postgres://fr:fr@localhost:5432/fr_test` (already set) | Used only by `pnpm test`, which truncates it |
-| `GEMINI_API_KEY` | your key | Embeddings, cards, Stories, summaries |
-| `GEMINI_FREE_TIER` | `true` | Keeps you under the free-tier daily caps (see "Gemini free tier" below) |
-| `ADMIN_USER`, `ADMIN_PASSWORD` | anything, e.g. `admin` / `admin` | The admin at `/admin` is turned off while either is empty |
-| `R2_*`, `ALERT_WEBHOOK_URL`, `SENTRY_DSN` | leave empty | Not used until M7 |
-| `EXPO_PUBLIC_API_BASE_URL` | leave empty here | The app reads its own `apps/mobile/.env` instead (step 7) |
+| Variable                                        | Local value                                               | Why                                                                     |
+| :---------------------------------------------- | :-------------------------------------------------------- | :---------------------------------------------------------------------- |
+| `DATABASE_URL`                                | `postgres://fr:fr@localhost:5432/fr` (already set)      | Dev database created by compose                                         |
+| `TEST_DATABASE_URL`                           | `postgres://fr:fr@localhost:5432/fr_test` (already set) | Used only by `pnpm test`, which truncates it                          |
+| `GEMINI_API_KEY`                              | your key                                                  | Embeddings, cards, Stories, summaries                                   |
+| `GEMINI_FREE_TIER`                            | `true`                                                  | Keeps you under the free-tier daily caps (see "Gemini free tier" below) |
+| `ADMIN_USER`, `ADMIN_PASSWORD`              | anything, e.g. `admin` / `admin`                      | The admin at `/admin` is turned off while either is empty             |
+| `R2_*`, `ALERT_WEBHOOK_URL`, `SENTRY_DSN` | leave empty                                               | Not used until M7                                                       |
+| `EXPO_PUBLIC_API_BASE_URL`                    | leave empty here                                          | The app reads its own `apps/mobile/.env` instead (step 7)             |
 
 `.env` is git-ignored. Never commit it.
 
 ### 3. Start Postgres
 
 ```sh
-docker compose up -d          # starts only the postgres service; the app services sit behind the "app" profile
+docker compose up -d postgres # starts only the postgres service if running worker & api on the host
 docker compose ps             # wait until postgres shows "healthy"
 docker compose exec postgres psql -U fr -c '\l'   # should list both fr and fr_test
 ```
@@ -167,7 +169,7 @@ On the free tier the day's quota can run out. Look for `DailyQuotaReached` in th
 ### 6. Run the API
 
 ```sh
-pnpm api:start                # Fastify on 0.0.0.0:3000 (logs JSON lines)
+pnpm api:start           # Fastify on 0.0.0.0:3000 (logs JSON lines)
 PORT=3077 pnpm api:start      # if something else already uses 3000
 ```
 
@@ -179,18 +181,18 @@ curl -s 'localhost:3000/v1/feed?limit=2' | head -c 600 # published cards; "items
 curl -s localhost:3000/v1/categories
 ```
 
-Open the admin at http://localhost:3000/admin and sign in with `ADMIN_USER` / `ADMIN_PASSWORD`. It lists Events, Stories and Sources and has a 30-day cost page. Regenerate and "make contested" only queue a job, so the worker from step 5 must be running for them to take effect.
+Open the admin at http://localhost:3000/admin and ign in with `ADMIN_USER` / `ADMIN_PASSWORD`. It lists Events, Stories and Sources and has a 30-day cost page. Regenerate and "make contested" only queue a job, so the worker from step 5 must be running for them to take effect.
 
 ### 7. Run the mobile app
 
 **a. Point the app at the API.** The app reads `apps/mobile/.env`, not the root `.env`. `EXPO_PUBLIC_*` values are inlined into the bundle when Metro builds it. Pick the URL for where the app runs:
 
-| App runs on | `EXPO_PUBLIC_API_BASE_URL` | Extra step |
-| :-- | :-- | :-- |
-| iOS simulator | `http://localhost:3000` | none: the simulator shares the Mac's network |
-| Android emulator | `http://10.0.2.2:3000` | none: `10.0.2.2` is the emulator's alias for the Mac |
-| Android phone over USB or wireless adb | `http://localhost:3000` | `adb reverse tcp:3000 tcp:3000` (and `tcp:8081` for Metro), see below |
-| Any phone on the same Wi‑Fi, no adb | `http://<Mac LAN IP>:3000` | find the IP with `ipconfig getifaddr en0`; allow incoming connections for Node in the macOS firewall |
+| App runs on                            | `EXPO_PUBLIC_API_BASE_URL` | Extra step                                                                                             |
+| :------------------------------------- | :--------------------------- | :----------------------------------------------------------------------------------------------------- |
+| iOS simulator                          | `http://localhost:3000`    | none: the simulator shares the Mac's network                                                           |
+| Android emulator                       | `http://10.0.2.2:3000`     | none: `10.0.2.2` is the emulator's alias for the Mac                                                 |
+| Android phone over USB or wireless adb | `http://localhost:3000`    | `adb reverse tcp:3000 tcp:3000` (and `tcp:8081` for Metro), see below                              |
+| Any phone on the same Wi‑Fi, no adb   | `http://<Mac LAN IP>:3000` | find the IP with `ipconfig getifaddr en0`; allow incoming connections for Node in the macOS firewall |
 
 ```sh
 echo "EXPO_PUBLIC_API_BASE_URL=http://10.0.2.2:3000" > apps/mobile/.env
@@ -240,58 +242,58 @@ Postgres must be up for `pnpm test`. The tests never touch the `fr` database or 
 To run the backend the way the VPS does, instead of steps 4–6:
 
 ```sh
-docker compose --profile app up -d --build                           # postgres → migrate (one-off) → worker + api on :3000
-docker compose --profile app run --rm migrate pnpm db:seed           # seed once
+docker compose up -d --build                           # postgres → migrate (one-off) → worker + api on :3000
+docker compose run --rm migrate pnpm db:seed           # seed once
 docker compose logs -f worker api
 ```
 
-The containers read the same root `.env`, but compose points `DATABASE_URL` at the `postgres` service. Don't also run `pnpm worker:start` / `pnpm api:start` on the host at the same time (port 3000 clashes). The mobile app still runs from source as in step 7. Stop the app services with `docker compose --profile app down`.
+The containers read the same root `.env`, but compose points `DATABASE_URL` at the `postgres` service. Don't also run `pnpm worker:start` / `pnpm api:start` on the host at the same time (port 3000 clashes). The mobile app still runs from source as in step 7. Stop the services with `docker compose down`.
 
 ### Stopping and resetting
 
-| Goal | Command |
-| :-- | :-- |
-| Stop worker, API, Metro | Ctrl-C in their terminals |
-| Stop Postgres, keep data | `docker compose down` |
-| Wipe the database completely | `docker compose down -v`, then steps 3–5 again |
+| Goal                                   | Command                                                                                    |
+| :------------------------------------- | :----------------------------------------------------------------------------------------- |
+| Stop worker, API, Metro                | Ctrl-C in their terminals                                                                  |
+| Stop Postgres, keep data               | `docker compose down`                                                                    |
+| Wipe the database completely           | `docker compose down -v`, then steps 3–5 again                                          |
 | Keep articles, redo grouping and cards | `pnpm events:reset` (clears Events, Stories, summaries), then `pnpm worker:tick` twice |
 
 ### Troubleshooting
 
-| Symptom | Cause and fix |
-| :-- | :-- |
-| `DATABASE_URL is not set` | No root `.env`. Run `cp .env.example .env` |
-| `ECONNREFUSED 127.0.0.1:5432` | Postgres is not running. `docker compose up -d`, wait for healthy |
-| `type "vector" does not exist` | Migrations not applied. `pnpm db:migrate` |
-| `GEMINI_API_KEY is not set: Gemini steps skipped` | Add the key to the root `.env` |
-| Ticks run but no Events get published | The first tick never publishes; run a second. Otherwise look for `DailyQuotaReached` or Gemini errors in the log, and for `failed` Events in the admin |
-| Feed in the app is empty | `curl localhost:3000/v1/feed` returns no items: published Events are older than 24 h. Run `pnpm worker:tick` twice |
-| "Couldn't load the news." | Wrong `EXPO_PUBLIC_API_BASE_URL` for the device, missing `adb reverse`, or the API is down. Fix it, then `pnpm mobile --clear` |
-| Changed `apps/mobile/.env` but the app still uses the old URL | The value is inlined at bundle time: restart Metro with `--clear` |
-| `/admin` returns 404 | `ADMIN_USER` or `ADMIN_PASSWORD` is empty; set both and restart the API |
-| `EADDRINUSE :3000` | Another process (or the Docker `api` service) is on 3000. Stop it or use `PORT=3077 pnpm api:start` and match the app's URL |
-| `pnpm test` fails with `database "fr_test" does not exist` | Create it (see step 3) |
-| Android build: `SDK location not found` / wrong Java | Set `ANDROID_HOME` and `JAVA_HOME` (step 1) and open a new terminal |
+| Symptom                                                         | Cause and fix                                                                                                                                              |
+| :-------------------------------------------------------------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `DATABASE_URL is not set`                                     | No root `.env`. Run `cp .env.example .env`                                                                                                             |
+| `ECONNREFUSED 127.0.0.1:5432`                                 | Postgres is not running. `docker compose up -d`, wait for healthy                                                                                        |
+| `type "vector" does not exist`                                | Migrations not applied. `pnpm db:migrate`                                                                                                                |
+| `GEMINI_API_KEY is not set: Gemini steps skipped`             | Add the key to the root `.env`                                                                                                                           |
+| Ticks run but no Events get published                           | The first tick never publishes; run a second. Otherwise look for `DailyQuotaReached` or Gemini errors in the log, and for `failed` Events in the admin |
+| Feed in the app is empty                                        | `curl localhost:3000/v1/feed` returns no items: published Events are older than 24 h. Run `pnpm worker:tick` twice                                     |
+| "Couldn't load the news."                                       | Wrong `EXPO_PUBLIC_API_BASE_URL` for the device, missing `adb reverse`, or the API is down. Fix it, then `pnpm mobile --clear`                       |
+| Changed `apps/mobile/.env` but the app still uses the old URL | The value is inlined at bundle time: restart Metro with `--clear`                                                                                        |
+| `/admin` returns 404                                          | `ADMIN_USER` or `ADMIN_PASSWORD` is empty; set both and restart the API                                                                                |
+| `EADDRINUSE :3000`                                            | Another process (or the Docker `api` service) is on 3000. Stop it or use `PORT=3077 pnpm api:start` and match the app's URL                            |
+| `pnpm test` fails with `database "fr_test" does not exist`  | Create it (see step 3)                                                                                                                                     |
+| Android build: `SDK location not found` / wrong Java          | Set `ANDROID_HOME` and `JAVA_HOME` (step 1) and open a new terminal                                                                                    |
 
 ## Running
 
-| Command | What it does |
-| :-- | :-- |
-| `pnpm worker:tick --dry-run` | Fetch and parse feeds, write nothing, skip the Gemini steps |
-| `pnpm worker:tick` | Run one full tick now |
-| `pnpm worker:start` | Long-running worker: tick every 15 min, nightly at 02:30 IST |
-| `pnpm api:start` | API on port 3000: `/v1/*` and the admin at `/admin` (needs `ADMIN_USER`/`ADMIN_PASSWORD`) |
-| `pnpm mobile` | Expo dev server for the app (see "Mobile app" below) |
-| `pnpm worker:nightly` | Run the nightly job now (waits for a running tick) |
-| `pnpm label:pairs` | Label article pairs (same event?) → `data/labels.csv` |
-| `pnpm label:pairs --events` | Label Event pairs (same storyline?) → `data/story-labels.csv` |
-| `pnpm label:report [--events]` | Precision/recall per threshold, with suggested `EVENT_*` / `STORY_*` values |
-| `pnpm cards:report [--n 30] [--from <report.md>]` | Generate cards for recent Events without saving them → `data/cards-<date>-v<prompt>.md` |
-| `pnpm events:reset` | Dev only: clear Events, Stories and summaries so articles are reassigned |
-| `pnpm test` | Vitest for every package, one package at a time (they share the `fr_test` database) |
-| `pnpm typecheck` | `tsc` across all packages |
-| `pnpm db:generate` | Generate a migration after editing `packages/db/src/schema.ts` |
-| `pnpm db:studio` | Browse and edit the dev database in Drizzle Studio (https://local.drizzle.studio) |
+| Command                                             | What it does                                                                                      |
+| :-------------------------------------------------- | :------------------------------------------------------------------------------------------------ |
+| `pnpm worker:tick --dry-run`                      | Fetch and parse feeds, write nothing, skip the Gemini steps                                       |
+| `pnpm worker:tick`                                | Run one full tick now                                                                             |
+| `pnpm worker:start`                               | Long-running worker: tick every 15 min, nightly at 02:30 IST                                      |
+| `pnpm api:start`                                  | API on port 3000: `/v1/*` and the admin at `/admin` (needs `ADMIN_USER`/`ADMIN_PASSWORD`) |
+| `pnpm mobile`                                     | Expo dev server for the app (see "Mobile app" below)                                              |
+| `pnpm worker:nightly`                             | Run the nightly job now (waits for a running tick)                                                |
+| `pnpm label:pairs`                                | Label article pairs (same event?) → `data/labels.csv`                                          |
+| `pnpm label:pairs --events`                       | Label Event pairs (same storyline?) → `data/story-labels.csv`                                  |
+| `pnpm label:report [--events]`                    | Precision/recall per threshold, with suggested `EVENT_*` / `STORY_*` values                   |
+| `pnpm cards:report [--n 30] [--from <report.md>]` | Generate cards for recent Events without saving them → `data/cards-<date>-v<prompt>.md`        |
+| `pnpm events:reset`                               | Dev only: clear Events, Stories and summaries so articles are reassigned                          |
+| `pnpm test`                                       | Vitest for every package, one package at a time (they share the `fr_test` database)             |
+| `pnpm typecheck`                                  | `tsc` across all packages                                                                       |
+| `pnpm db:generate`                                | Generate a migration after editing `packages/db/src/schema.ts`                                  |
+| `pnpm db:studio`                                  | Browse and edit the dev database in Drizzle Studio (https://local.drizzle.studio)                 |
 
 Without `GEMINI_API_KEY`, a tick only ingests and skips every Gemini step.
 
@@ -299,13 +301,13 @@ Without `GEMINI_API_KEY`, a tick only ingests and skips every Gemini step.
 
 Public, read-only, `Cache-Control: public, s-maxage=60`:
 
-| Endpoint | Returns |
-| :-- | :-- |
-| `GET /v1/feed?category=&cursor=&limit=20` | Published cards, newest first with a small multi-source boost; `nextCursor` for the next page; `windowTotal` (the category's cards from the last 24 h, for the app's progress bar) |
-| `GET /v1/events/:id` | One card. A merged Event answers 301 to the Event it was merged into |
-| `GET /v1/stories/:id/timeline` | The Story's published Events, oldest first |
-| `GET /v1/stories/:id/summary?asOf=:eventId` | The story-so-far as of that Event, or 404 |
-| `GET /v1/categories`, `GET /v1/config` | Category labels; `{ showAiLabel, minAppVersion }` |
+| Endpoint                                      | Returns                                                                                                                                                                                |
+| :-------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /v1/feed?category=&cursor=&limit=20`   | Published cards, newest first with a small multi-source boost; `nextCursor` for the next page; `windowTotal` (the category's cards from the last 24 h, for the app's progress bar) |
+| `GET /v1/events/:id`                        | One card. A merged Event answers 301 to the Event it was merged into                                                                                                                   |
+| `GET /v1/stories/:id/timeline`              | The Story's published Events, oldest first                                                                                                                                             |
+| `GET /v1/stories/:id/summary?asOf=:eventId` | The story-so-far as of that Event, or 404                                                                                                                                              |
+| `GET /v1/categories`, `GET /v1/config`    | Category labels; `{ showAiLabel, minAppVersion }`                                                                                                                                    |
 
 The admin at `/admin` uses HTTP basic auth (`ADMIN_USER`/`ADMIN_PASSWORD`; it is off when they are unset). It has Events (hide, unhide, regenerate, flip contested, merge, move to Story), Stories (rename, merge), Sources (toggle) and a 30-day cost page. Regenerate and "make contested" queue a pg-boss `regen` job that the worker runs between ticks, so the API never calls Gemini. Forms are only accepted from the admin's own origin.
 
@@ -319,12 +321,12 @@ The UI follows the artboard in [`packages/designs`](packages/designs). Light col
 
 ## Deploy (VPS)
 
-The `Dockerfile` builds one image for every app; `docker-compose.yml` picks the command. The app services sit behind the `app` profile, so a plain `docker compose up -d` in dev still starts only Postgres.
+The `Dockerfile` builds one image for every app; `docker-compose.yml` picks the command. Running `docker compose up -d` starts Postgres, runs database migrations, and launches both worker and API services.
 
 ```sh
 cp .env.example .env          # GEMINI_API_KEY, GEMINI_FREE_TIER=false, ADMIN_USER/ADMIN_PASSWORD
-docker compose --profile app up -d --build   # postgres → migrate (one-off) → worker + api (:3000)
-docker compose --profile app run --rm migrate pnpm db:seed --all-feeds
+docker compose up -d --build   # postgres → migrate (one-off) → worker + api (:3000)
+docker compose run --rm migrate pnpm db:seed --all-feeds
 docker compose logs -f worker api
 ```
 
