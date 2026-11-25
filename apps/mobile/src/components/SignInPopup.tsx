@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from "react";
 import { Modal, Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
-import { GestureDetector, GestureHandlerRootView, usePanGesture } from "react-native-gesture-handler";
 import Animated, {
   Easing,
   useAnimatedStyle,
@@ -10,7 +9,6 @@ import Animated, {
   withSpring,
   withTiming,
 } from "react-native-reanimated";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Defs, RadialGradient, Rect, Stop } from "react-native-svg";
 import { scheduleOnRN } from "react-native-worklets";
 import { Image } from "expo-image";
@@ -20,7 +18,7 @@ import { COPY, LEGAL } from "../auth/copy";
 import { firstName, useSignIn } from "../auth/useSignIn";
 import { dark as darkPalette, fonts, type Palette } from "../theme/tokens";
 import { GoogleButton } from "./GoogleButton";
-import { CheckIcon } from "./icons";
+import { CheckIcon, CloseIcon } from "./icons";
 
 export type HeroCard = { id: string; imageUrl: string | null; category: Category };
 
@@ -32,15 +30,15 @@ type Props = {
   onClose: () => void;
 };
 
-const OPEN = { damping: 22, stiffness: 210, mass: 0.9 };
-const CLOSE = { duration: 220, easing: Easing.in(Easing.quad) };
+const OPEN = { damping: 20, stiffness: 240, mass: 0.9 };
+const CLOSE = { duration: 180, easing: Easing.in(Easing.quad) };
 const FAN = { damping: 14, stiffness: 160, mass: 0.8 };
 const FADE = { duration: 220, easing: Easing.out(Easing.cubic) };
-const DISMISS_DISTANCE = 90;
-const DISMISS_VELOCITY = 800;
 // After a successful sign-in the welcome stays up this long, then the sheet closes itself.
 const WELCOME_MS = 1600;
 const RADIUS = 28;
+const MAX_WIDTH = 360;
+const SIDE_GAP = 20;
 
 // Where each hero card ends up when fanned: left, back to front.
 const FAN_POSES = [
@@ -51,16 +49,15 @@ const FAN_POSES = [
 const STAGGER_MS = 60;
 const FAN_DELAY_MS = 140;
 
-// The sign-in invitation: a bottom sheet with the reader's own last cards fanned above one Google button.
-// It slides up on a soft spring, closes on "Not now", the scrim, the back button or a drag down.
-export function SignInSheet({ palette, visible, cards, onClose }: Props) {
-  const { height } = useWindowDimensions();
-  const insets = useSafeAreaInsets();
+// The sign-in invitation: a centred card over the dimmed feed, with the reader's own last cards fanned
+// above one Google button. It grows in on a soft spring; the close button, "Not now", the scrim and the
+// back button all close it.
+export function SignInPopup({ palette, visible, cards, onClose }: Props) {
+  const { width } = useWindowDimensions();
   const reduceMotion = useReducedMotion();
   const isDark = palette === darkPalette;
   const [mounted, setMounted] = useState(visible);
   const shown = useSharedValue(0);
-  const drag = useSharedValue(0);
   const welcome = useSharedValue(0);
   const signIn = useSignIn();
   const busy = signIn.state.status === "busy";
@@ -70,7 +67,6 @@ export function SignInSheet({ palette, visible, cards, onClose }: Props) {
     if (visible) {
       setMounted(true);
       signIn.reset();
-      drag.value = 0;
       welcome.value = 0;
       shown.value = reduceMotion ? withTiming(1, FADE) : withSpring(1, OPEN);
     } else {
@@ -95,23 +91,12 @@ export function SignInSheet({ palette, visible, cards, onClose }: Props) {
     if (!busy && !done) onClose();
   };
 
-  const pan = usePanGesture({
-    activeOffsetY: [-8, 8],
-    onUpdate: (event) => {
-      drag.value = Math.max(0, event.translationY);
-    },
-    onDeactivate: (event) => {
-      if (event.translationY > DISMISS_DISTANCE || event.velocityY > DISMISS_VELOCITY) scheduleOnRN(dismiss);
-      else drag.value = withSpring(0, OPEN);
-    },
-  });
-
   const scrimStyle = useAnimatedStyle(() => ({ opacity: shown.value }));
-  const panelStyle = useAnimatedStyle(() =>
-    reduceMotion
-      ? { opacity: shown.value, transform: [{ translateY: drag.value }] }
-      : { transform: [{ translateY: (1 - shown.value) * height * 0.6 + drag.value }] },
-  );
+  // Grows from 0.94 on the way in and shrinks to 0.96 on the way out; reduce-motion only fades.
+  const panelStyle = useAnimatedStyle(() => ({
+    opacity: Math.min(shown.value * 1.4, 1),
+    transform: [{ scale: reduceMotion ? 1 : (visible ? 0.94 : 0.96) + shown.value * (visible ? 0.06 : 0.04) }],
+  }));
   const formStyle = useAnimatedStyle(() => ({ opacity: 1 - welcome.value }));
   const welcomeStyle = useAnimatedStyle(() => ({
     opacity: welcome.value,
@@ -125,77 +110,88 @@ export function SignInSheet({ palette, visible, cards, onClose }: Props) {
 
   return (
     <Modal visible transparent animationType="none" statusBarTranslucent navigationBarTranslucent onRequestClose={dismiss}>
-      <GestureHandlerRootView style={styles.root}>
+      <View style={styles.root}>
         <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: palette.scrim }, scrimStyle]}>
-          <Pressable style={StyleSheet.absoluteFill} onPress={dismiss} accessibilityRole="button" accessibilityLabel={COPY.notNow} />
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={dismiss}
+            accessibilityRole="button"
+            accessibilityLabel={COPY.notNow}
+          />
         </Animated.View>
-        <GestureDetector gesture={pan}>
-          <Animated.View
-            accessibilityViewIsModal
-            accessibilityLabel="Sign in"
-            style={[styles.panel, { paddingBottom: insets.bottom + 18, backgroundColor: palette.card }, panelStyle]}
-          >
-            <View style={[styles.handle, { backgroundColor: palette.muted }]} />
+        <Animated.View
+          accessibilityViewIsModal
+          accessibilityLabel="Sign in"
+          style={[styles.panel, { width: Math.min(width - SIDE_GAP * 2, MAX_WIDTH), backgroundColor: palette.card }, panelStyle]}
+        >
+          <View style={styles.hero} accessible={false} importantForAccessibility="no-hide-descendants">
+            <Glow color={palette.neutral} />
+            {hero.map((card, i) => (
+              <FannedCard
+                key={card.id}
+                card={card}
+                pose={FAN_POSES[i + (3 - hero.length)]!}
+                open={visible}
+                delay={i * STAGGER_MS}
+                instant={reduceMotion}
+                palette={palette}
+              />
+            ))}
+          </View>
 
-            <View style={styles.hero} accessible={false} importantForAccessibility="no-hide-descendants">
-              <Glow color={palette.neutral} />
-              {hero.map((card, i) => (
-                <FannedCard
-                  key={card.id}
-                  card={card}
-                  pose={FAN_POSES[i + (3 - hero.length)]!}
-                  open={visible}
-                  delay={i * STAGGER_MS}
-                  instant={reduceMotion}
-                  palette={palette}
-                />
-              ))}
-            </View>
+          <View>
+            <Animated.View style={formStyle} pointerEvents={done ? "none" : "auto"}>
+              <Text style={[styles.headline, { color: palette.ink }]} accessibilityRole="header">
+                {COPY.headline}
+              </Text>
+              <Text style={[styles.body, { color: palette.muted }]}>{COPY.body}</Text>
 
-            <View>
-              <Animated.View style={formStyle} pointerEvents={done ? "none" : "auto"}>
-                <Text style={[styles.eyebrow, { color: palette.neutral }]}>{COPY.eyebrow.toUpperCase()}</Text>
-                <Text style={[styles.headline, { color: palette.ink }]} accessibilityRole="header">
-                  {COPY.headline}
+              <View style={styles.actions}>
+                <GoogleButton dark={isDark} busy={busy} onPress={() => void signIn.start()} />
+                <Text
+                  style={[styles.error, { color: palette.left, opacity: error ? 1 : 0 }]}
+                  accessibilityLiveRegion="polite"
+                  accessibilityElementsHidden={!error}
+                >
+                  {error ?? " "}
                 </Text>
-                <Text style={[styles.body, { color: palette.muted }]}>{COPY.body}</Text>
+                <Pressable
+                  onPress={dismiss}
+                  disabled={busy}
+                  accessibilityRole="button"
+                  hitSlop={8}
+                  style={({ pressed }) => [styles.notNow, { opacity: busy ? 0 : pressed ? 0.5 : 1 }]}
+                >
+                  <Text style={[styles.notNowText, { color: palette.ink }]}>{COPY.notNow}</Text>
+                </Pressable>
+              </View>
 
-                <View style={styles.actions}>
-                  <GoogleButton dark={isDark} busy={busy} onPress={() => void signIn.start()} />
-                  <Text
-                    style={[styles.error, { color: palette.left, opacity: error ? 1 : 0 }]}
-                    accessibilityLiveRegion="polite"
-                    accessibilityElementsHidden={!error}
-                  >
-                    {error ?? " "}
-                  </Text>
-                  <Pressable
-                    onPress={dismiss}
-                    disabled={busy}
-                    accessibilityRole="button"
-                    hitSlop={8}
-                    style={({ pressed }) => [styles.notNow, { opacity: busy ? 0 : pressed ? 0.5 : 1 }]}
-                  >
-                    <Text style={[styles.notNowText, { color: palette.ink }]}>{COPY.notNow}</Text>
-                  </Pressable>
+              <FinePrint palette={palette} />
+            </Animated.View>
+
+            {done ? (
+              <Animated.View style={[StyleSheet.absoluteFill, styles.welcome, welcomeStyle]} accessibilityLiveRegion="assertive">
+                <View style={[styles.check, { backgroundColor: palette.neutral }]}>
+                  <CheckIcon color={palette.onNeutral} />
                 </View>
-
-                <FinePrint palette={palette} />
+                <Text style={[styles.headline, styles.center, { color: palette.ink }]}>
+                  {COPY.welcome(user ? firstName(user) : null)}
+                </Text>
+                <Text style={[styles.body, styles.center, { color: palette.muted }]}>{COPY.welcomeBody}</Text>
               </Animated.View>
-
-              {done ? (
-                <Animated.View style={[StyleSheet.absoluteFill, styles.welcome, welcomeStyle]} accessibilityLiveRegion="assertive">
-                  <View style={[styles.check, { backgroundColor: palette.neutral }]}>
-                    <CheckIcon color={palette.onNeutral} />
-                  </View>
-                  <Text style={[styles.headline, styles.center, { color: palette.ink }]}>{COPY.welcome(user ? firstName(user) : null)}</Text>
-                  <Text style={[styles.body, styles.center, { color: palette.muted }]}>{COPY.welcomeBody}</Text>
-                </Animated.View>
-              ) : null}
-            </View>
-          </Animated.View>
-        </GestureDetector>
-      </GestureHandlerRootView>
+            ) : null}
+          </View>
+          <Pressable
+            onPress={dismiss}
+            disabled={busy || done}
+            accessibilityRole="button"
+            accessibilityLabel="Close"
+            style={({ pressed }) => [styles.close, { opacity: busy || done ? 0 : pressed ? 0.5 : 1 }]}
+          >
+            <CloseIcon color={palette.muted} size={20} />
+          </Pressable>
+        </Animated.View>
+      </View>
     </Modal>
   );
 }
@@ -293,19 +289,23 @@ const CARD_W = 92;
 const CARD_H = 122;
 
 const styles = StyleSheet.create({
-  root: { flex: 1 },
+  root: { flex: 1, alignItems: "center", justifyContent: "center" },
   panel: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    bottom: 0,
+    borderRadius: RADIUS,
+    paddingHorizontal: 24,
+    paddingBottom: 18,
+    boxShadow: "0 24px 64px rgba(0,0,0,0.28)",
+  },
+  close: { position: "absolute", top: 6, right: 6, width: 44, height: 44, alignItems: "center", justifyContent: "center" },
+  hero: {
+    height: 168,
+    alignItems: "center",
+    justifyContent: "center",
+    marginHorizontal: -24,
     borderTopLeftRadius: RADIUS,
     borderTopRightRadius: RADIUS,
-    paddingHorizontal: 24,
-    boxShadow: "0 -8px 32px rgba(0,0,0,0.18)",
+    overflow: "hidden",
   },
-  handle: { alignSelf: "center", width: 36, height: 4, borderRadius: 2, opacity: 0.3, marginTop: 8 },
-  hero: { height: 176, alignItems: "center", justifyContent: "center", marginHorizontal: -24, marginTop: 4 },
   cardShadow: {
     position: "absolute",
     width: CARD_W,
@@ -322,10 +322,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   cardPlaceholder: { fontFamily: fonts.headline, fontSize: 18, paddingHorizontal: 6 },
-  eyebrow: { fontFamily: fonts.semibold, fontSize: 11, letterSpacing: 1.4, marginTop: 6 },
-  headline: { fontFamily: fonts.headline, fontSize: 28, lineHeight: 32, letterSpacing: -0.42, marginTop: 8 },
+  headline: { fontFamily: fonts.headline, fontSize: 26, lineHeight: 30, letterSpacing: -0.39, marginTop: 4 },
   body: { fontFamily: fonts.regular, fontSize: 15, lineHeight: 22, marginTop: 8 },
-  actions: { marginTop: 22 },
+  actions: { marginTop: 20 },
   error: { fontFamily: fonts.medium, fontSize: 13, lineHeight: 18, textAlign: "center", marginTop: 10 },
   notNow: { minHeight: 48, alignItems: "center", justifyContent: "center", marginTop: 2 },
   notNowText: { fontFamily: fonts.semibold, fontSize: 15 },

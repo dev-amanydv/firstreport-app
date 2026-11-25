@@ -13,7 +13,7 @@ import { useAnyOverlayOpen } from "../overlays";
 import { fonts, metrics, type Palette } from "../theme/tokens";
 import { Card } from "./Card";
 import type { FeedCategory } from "./CategoryStrip";
-import { SignInSheet } from "./SignInSheet";
+import { SignInPopup } from "./SignInPopup";
 
 const PREFETCH_FROM_END = 5;
 // Coming back after this long starts again from the newest card.
@@ -151,7 +151,7 @@ export function Feed({ palette, category }: Props) {
   return (
     <View style={styles.feed} onLayout={onLayout}>
       {content}
-      <SignInSheet palette={palette} visible={promptOpen} cards={heroCards} onClose={() => setPromptOpen(false)} />
+      <SignInPopup palette={palette} visible={promptOpen} cards={heroCards} onClose={() => setPromptOpen(false)} />
     </View>
   );
 }
