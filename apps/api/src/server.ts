@@ -3,14 +3,17 @@ import Fastify from "fastify";
 import { ZodError } from "zod";
 import type { Db } from "@fr/db";
 import { adminRoutes, type AdminCredentials } from "./admin/routes.js";
+import type { GoogleVerifier } from "./auth/google.js";
+import { authRoutes } from "./auth/routes.js";
 import { publicRoutes } from "./public/routes.js";
 
 // The pg-boss subset the admin uses, so tests can pass a fake.
 export type Queue = { send(name: string, data: object): Promise<unknown> };
 
-type ServerOptions = { db: Db; queue: Queue; admin: AdminCredentials | null; logger?: boolean };
+// verifyGoogle is null while GOOGLE_WEB_CLIENT_ID is unset: sign-in then answers 503.
+type ServerOptions = { db: Db; queue: Queue; admin: AdminCredentials | null; verifyGoogle?: GoogleVerifier | null; logger?: boolean };
 
-export function buildServer({ db, queue, admin, logger = false }: ServerOptions) {
+export function buildServer({ db, queue, admin, verifyGoogle = null, logger = false }: ServerOptions) {
   const app = Fastify({ logger });
 
   app.setErrorHandler((error, _request, reply) => {
@@ -21,6 +24,8 @@ export function buildServer({ db, queue, admin, logger = false }: ServerOptions)
   });
 
   app.register(publicRoutes, { prefix: "/v1", db });
+  // A separate plugin, so the public routes' cache header never reaches per-user answers.
+  app.register(authRoutes, { prefix: "/v1", db, verifyGoogle });
   if (admin) {
     app.register(formbody);
     app.register(adminRoutes, { prefix: "/admin", db, queue, credentials: admin });

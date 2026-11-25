@@ -1,6 +1,7 @@
 import { PgBoss } from "pg-boss";
 import { createDb, databaseUrl } from "@fr/db";
 import { API_PORT, REGEN_EXPIRE_SECONDS, REGEN_QUEUE } from "@fr/shared";
+import { configuredClientId, googleVerifier } from "./auth/google.js";
 import { buildServer } from "./server.js";
 
 const database = createDb(databaseUrl());
@@ -12,10 +13,12 @@ await boss.createQueue(REGEN_QUEUE, { expireInSeconds: REGEN_EXPIRE_SECONDS, ret
 
 const user = process.env.ADMIN_USER;
 const password = process.env.ADMIN_PASSWORD;
+const googleClientId = configuredClientId(process.env.GOOGLE_WEB_CLIENT_ID);
 const app = buildServer({
   db: database.db,
   queue: boss,
   admin: user && password ? { user, password } : null,
+  verifyGoogle: googleClientId ? googleVerifier(googleClientId) : null,
   logger: true,
 });
 
