@@ -7,7 +7,7 @@ import { scheduleOnRN } from "react-native-worklets";
 import { useOverlay } from "../overlays";
 import { fonts, metrics, type Palette } from "../theme/tokens";
 
-type Props = { palette: Palette; visible: boolean; title: string; onClose: () => void; children: ReactNode };
+type Props = { palette: Palette; visible: boolean; title: string; centerTitle?: boolean; onClose: () => void; children: ReactNode };
 
 const OPEN = { duration: 240, easing: Easing.out(Easing.cubic) };
 const CLOSE = { duration: 200, easing: Easing.in(Easing.quad) };
@@ -18,7 +18,7 @@ const MAX_HEIGHT_SHARE = 0.75;
 
 // A bottom sheet over everything: slides up, closes on the scrim, the back button or a drag down.
 // It stays mounted until the closing slide ends, so the content does not vanish mid-animation.
-export function Sheet({ palette, visible, title, onClose, children }: Props) {
+export function Sheet({ palette, visible, title, centerTitle = false, onClose, children }: Props) {
   const { height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const [mounted, setMounted] = useState(visible);
@@ -71,7 +71,7 @@ export function Sheet({ palette, visible, title, onClose, children }: Props) {
           <GestureDetector gesture={pan}>
             <View style={styles.header} collapsable={false}>
               <View style={[styles.handle, { backgroundColor: palette.muted }]} />
-              <Text style={[styles.title, { color: palette.ink }]} accessibilityRole="header">
+              <Text style={[styles.title, centerTitle && styles.centered, { color: palette.ink }]} accessibilityRole="header">
                 {title}
               </Text>
             </View>
@@ -110,6 +110,7 @@ const styles = StyleSheet.create({
   header: { paddingTop: 8, paddingBottom: 12, paddingHorizontal: 20 },
   handle: { alignSelf: "center", width: 36, height: 4, borderRadius: 2, opacity: 0.35, marginBottom: 14 },
   title: { fontFamily: fonts.headline, fontSize: 22, lineHeight: 26, letterSpacing: -0.33, includeFontPadding: false },
+  centered: { textAlign: "center" },
   content: { paddingHorizontal: 20 },
   message: { paddingVertical: 24, gap: 12 },
   messageText: { fontFamily: fonts.regular, fontSize: 15, lineHeight: 22 },

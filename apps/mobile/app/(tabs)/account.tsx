@@ -12,7 +12,6 @@ import { useSignIn } from "../../src/auth/useSignIn";
 import {
   BellIcon,
   BookmarkIcon,
-  CheckIcon,
   ChevronIcon,
   ContrastIcon,
   DocumentIcon,
@@ -21,6 +20,7 @@ import {
   ShieldIcon,
   SignOutIcon,
 } from "../../src/components/icons";
+import { AppearancePicker } from "../../src/components/AppearancePicker";
 import { Sheet } from "../../src/components/Sheet";
 import type { AppearanceChoice } from "../../src/lib/appearance";
 import { initials } from "../../src/lib/sources";
@@ -74,24 +74,9 @@ export default function Account() {
         {signedIn ? <AccountActions palette={palette} /> : null}
       </ScrollView>
 
-      <Sheet palette={palette} visible={picker} title="Appearance" onClose={() => setPicker(false)}>
-        {(Object.keys(APPEARANCE_LABELS) as AppearanceChoice[]).map((choice, i) => (
-          <Fragment key={choice}>
-            {i > 0 ? <View style={[styles.pickerDivider, { backgroundColor: palette.hairline }]} /> : null}
-            <Pressable
-              onPress={() => {
-                setAppearance(choice);
-                setPicker(false);
-              }}
-              accessibilityRole="radio"
-              accessibilityState={{ checked: choice === appearance }}
-              style={({ pressed }) => [styles.pickerRow, pressed && { opacity: 0.5 }]}
-            >
-              <Text style={[styles.rowLabel, { color: palette.ink }]}>{APPEARANCE_LABELS[choice]}</Text>
-              {choice === appearance ? <CheckIcon color={palette.neutral} size={22} /> : null}
-            </Pressable>
-          </Fragment>
-        ))}
+      {/* Choosing applies at once, so the reader sees the whole app change behind the sheet. */}
+      <Sheet palette={palette} visible={picker} title="Appearance" centerTitle onClose={() => setPicker(false)}>
+        <AppearancePicker palette={palette} value={appearance} onChange={setAppearance} />
       </Sheet>
     </View>
   );
@@ -344,6 +329,4 @@ const styles = StyleSheet.create({
   danger: { fontFamily: fonts.semibold },
   soon: { borderRadius: 10, paddingHorizontal: 8, paddingVertical: 3 },
   soonText: { fontFamily: fonts.semibold, fontSize: 11, letterSpacing: 0.4 },
-  pickerRow: { minHeight: 52, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  pickerDivider: { height: StyleSheet.hairlineWidth * 2 },
 });
