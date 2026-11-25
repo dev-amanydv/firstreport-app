@@ -74,9 +74,16 @@ export default function Account() {
         {signedIn ? <AccountActions palette={palette} /> : null}
       </ScrollView>
 
-      {/* Choosing applies at once, so the reader sees the whole app change behind the sheet. */}
+      {/* Choosing applies the theme and closes the sheet at once. */}
       <Sheet palette={palette} visible={picker} title="Appearance" centerTitle onClose={() => setPicker(false)}>
-        <AppearancePicker palette={palette} value={appearance} onChange={setAppearance} />
+        <AppearancePicker
+          palette={palette}
+          value={appearance}
+          onChange={(choice) => {
+            setAppearance(choice);
+            setPicker(false);
+          }}
+        />
       </Sheet>
     </View>
   );

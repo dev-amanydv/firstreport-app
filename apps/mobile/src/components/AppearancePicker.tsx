@@ -35,9 +35,9 @@ export function AppearancePicker({ palette, value, onChange }: Props) {
         return (
           <Pressable
             key={choice}
+            // Tapping the current choice still reports it, so the sheet can close.
             onPress={() => {
-              if (selected) return;
-              void Haptics.selectionAsync();
+              if (!selected) void Haptics.selectionAsync();
               onChange(choice);
             }}
             accessibilityRole="radio"
