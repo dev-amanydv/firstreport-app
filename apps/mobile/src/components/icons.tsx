@@ -109,3 +109,85 @@ export function CheckIcon({ color, size = 28 }: IconProps) {
     </Svg>
   );
 }
+
+// Account page rows: same 24-grid line style.
+export function BookmarkIcon({ color, size = 22 }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" {...stroke(color)}>
+      <Path d="M6 3.5h12v17l-6-4.25-6 4.25z" />
+    </Svg>
+  );
+}
+
+export function BellIcon({ color, size = 22 }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" {...stroke(color)}>
+      <Path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15z" />
+      <Path d="M10 21h4" />
+    </Svg>
+  );
+}
+
+export function ContrastIcon({ color, size = 22 }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" {...stroke(color)}>
+      <Circle cx="12" cy="12" r="9" />
+      <Path d="M12 3a9 9 0 0 1 0 18z" fill={color} />
+    </Svg>
+  );
+}
+
+export function InfoIcon({ color, size = 22 }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" {...stroke(color)}>
+      <Circle cx="12" cy="12" r="9" />
+      <Line x1="12" x2="12" y1="11" y2="16.5" />
+      <Line x1="12" x2="12.01" y1="7.5" y2="7.5" />
+    </Svg>
+  );
+}
+
+export function ShieldIcon({ color, size = 22 }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" {...stroke(color)}>
+      <Path d="M12 3 4.5 6v5.5c0 4.6 3.2 8.2 7.5 9.5 4.3-1.3 7.5-4.9 7.5-9.5V6z" />
+    </Svg>
+  );
+}
+
+export function DocumentIcon({ color, size = 22 }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" {...stroke(color)}>
+      <Path d="M14 3H6.5A1.5 1.5 0 0 0 5 4.5v15A1.5 1.5 0 0 0 6.5 21h11a1.5 1.5 0 0 0 1.5-1.5V8z" />
+      <Polyline points="14 3 14 8 19 8" />
+      <Line x1="8.5" x2="15.5" y1="13" y2="13" />
+      <Line x1="8.5" x2="13" y1="16.5" y2="16.5" />
+    </Svg>
+  );
+}
+
+export function SignOutIcon({ color, size = 22 }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" {...stroke(color)}>
+      <Path d="M9 21H5.5A1.5 1.5 0 0 1 4 19.5v-15A1.5 1.5 0 0 1 5.5 3H9" />
+      <Polyline points="16 17 21 12 16 7" />
+      <Line x1="21" x2="9" y1="12" y2="12" />
+    </Svg>
+  );
+}
+
+export function ChevronIcon({ color, size = 18 }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" {...stroke(color)}>
+      <Polyline points="9 6 15 12 9 18" />
+    </Svg>
+  );
+}
+
+export function BackIcon({ color, size = 24 }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" {...stroke(color)}>
+      <Polyline points="15 6 9 12 15 18" />
+    </Svg>
+  );
+}

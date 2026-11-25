@@ -1,60 +1,206 @@
-import { useState } from "react";
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Fragment, useState, type ReactNode } from "react";
+import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import Constants from "expo-constants";
 import { Image } from "expo-image";
+import { router } from "expo-router";
+import * as WebBrowser from "expo-web-browser";
 import type { User } from "@fr/shared";
-import { COPY } from "../../src/auth/copy";
+import { COPY, LEGAL } from "../../src/auth/copy";
 import { deleteAccount, signOut, useSession } from "../../src/auth/session";
 import { useSignIn } from "../../src/auth/useSignIn";
-import { GoogleButton } from "../../src/components/GoogleButton";
+import {
+  BellIcon,
+  BookmarkIcon,
+  CheckIcon,
+  ChevronIcon,
+  ContrastIcon,
+  DocumentIcon,
+  InfoIcon,
+  PersonIcon,
+  ShieldIcon,
+  SignOutIcon,
+} from "../../src/components/icons";
+import { Sheet } from "../../src/components/Sheet";
+import type { AppearanceChoice } from "../../src/lib/appearance";
 import { initials } from "../../src/lib/sources";
-import { dark, fonts, metrics, type Palette } from "../../src/theme/tokens";
-import { usePalette } from "../../src/theme/useTheme";
+import { fonts, metrics, type Palette } from "../../src/theme/tokens";
+import { setAppearance, useAppearance, usePalette } from "../../src/theme/useTheme";
 
-// The one place a reader can always sign in, see who they are signed in as, sign out or delete the account.
+const APPEARANCE_LABELS: Record<AppearanceChoice, string> = { system: "System", light: "Light", dark: "Dark" };
+const VERSION = Constants.expoConfig?.version ?? "";
+
+// Laid out like a signed-in account page for everyone: the header shows Log in / Sign up until there is
+// a profile to show, and the Account section appears once signed in.
 export default function Account() {
   const palette = usePalette();
   const insets = useSafeAreaInsets();
   const session = useSession();
+  const appearance = useAppearance();
+  const [picker, setPicker] = useState(false);
+  const signedIn = session.status === "signedIn";
 
   return (
-    <ScrollView
-      style={{ backgroundColor: palette.canvas }}
-      contentContainerStyle={[styles.screen, { paddingTop: insets.top + 12 }]}
-    >
-      <Text style={[styles.title, { color: palette.ink }]} accessibilityRole="header">
-        Account
-      </Text>
-      {session.status === "signedIn" ? (
-        <SignedIn palette={palette} user={session.user} />
-      ) : session.status === "signedOut" ? (
-        <SignedOut palette={palette} />
-      ) : null}
-    </ScrollView>
+    <View style={{ flex: 1, backgroundColor: palette.canvas }}>
+      <ScrollView contentContainerStyle={[styles.screen, { paddingTop: insets.top + 12 }]}>
+        <Text style={[styles.title, { color: palette.ink }]} accessibilityRole="header">
+          Account
+        </Text>
+
+        {signedIn ? <Profile palette={palette} user={session.user} /> : <SignedOutHeader palette={palette} />}
+
+        <Section palette={palette} label="Your reading">
+          <Row palette={palette} icon={BookmarkIcon} label="Saved stories" soon />
+          <Row palette={palette} icon={BellIcon} label="Followed stories" soon />
+        </Section>
+
+        <Section palette={palette} label="Preferences">
+          <Row
+            palette={palette}
+            icon={ContrastIcon}
+            label="Appearance"
+            value={APPEARANCE_LABELS[appearance]}
+            onPress={() => setPicker(true)}
+          />
+        </Section>
+
+        <Section palette={palette} label="About">
+          <Row palette={palette} icon={InfoIcon} label="How FirstReport works" onPress={() => router.push("/about")} />
+          <LegalRow palette={palette} icon={ShieldIcon} label="Privacy policy" url={LEGAL.privacyUrl} />
+          <LegalRow palette={palette} icon={DocumentIcon} label="Terms of use" url={LEGAL.termsUrl} />
+          <Row palette={palette} label={`Version ${VERSION}`} muted />
+        </Section>
+
+        {signedIn ? <AccountActions palette={palette} /> : null}
+      </ScrollView>
+
+      <Sheet palette={palette} visible={picker} title="Appearance" onClose={() => setPicker(false)}>
+        {(Object.keys(APPEARANCE_LABELS) as AppearanceChoice[]).map((choice, i) => (
+          <Fragment key={choice}>
+            {i > 0 ? <View style={[styles.pickerDivider, { backgroundColor: palette.hairline }]} /> : null}
+            <Pressable
+              onPress={() => {
+                setAppearance(choice);
+                setPicker(false);
+              }}
+              accessibilityRole="radio"
+              accessibilityState={{ checked: choice === appearance }}
+              style={({ pressed }) => [styles.pickerRow, pressed && { opacity: 0.5 }]}
+            >
+              <Text style={[styles.rowLabel, { color: palette.ink }]}>{APPEARANCE_LABELS[choice]}</Text>
+              {choice === appearance ? <CheckIcon color={palette.neutral} size={22} /> : null}
+            </Pressable>
+          </Fragment>
+        ))}
+      </Sheet>
+    </View>
   );
 }
 
-function SignedOut({ palette }: { palette: Palette }) {
+function SignedOutHeader({ palette }: { palette: Palette }) {
   const signIn = useSignIn();
+  // Google is the only provider, so both buttons run the same flow: a first visit creates the account.
+  const [pressed, setPressed] = useState<"logIn" | "signUp" | null>(null);
+  const busy = signIn.state.status === "busy";
   const error = signIn.state.status === "error" ? signIn.state.message : null;
+  const start = (which: "logIn" | "signUp") => {
+    setPressed(which);
+    void signIn.start();
+  };
+
   return (
-    <View style={[styles.panel, { backgroundColor: palette.card }]}>
-      <Text style={[styles.eyebrow, { color: palette.neutral }]}>{COPY.eyebrow.toUpperCase()}</Text>
-      <Text style={[styles.headline, { color: palette.ink }]}>{COPY.headline}</Text>
-      <Text style={[styles.body, { color: palette.muted }]}>{COPY.body}</Text>
-      <View style={styles.button}>
-        <GoogleButton dark={palette === dark} busy={signIn.state.status === "busy"} onPress={() => void signIn.start()} />
+    <View style={[styles.panel, styles.header, { backgroundColor: palette.card }]}>
+      <View style={styles.headerTop}>
+        <View style={[styles.avatar, styles.avatarEmpty, { backgroundColor: palette.hairline }]}>
+          <PersonIcon color={palette.muted} size={28} />
+        </View>
+        <View style={styles.who}>
+          <Text style={[styles.name, { color: palette.ink }]}>{COPY.account.signedOutTitle}</Text>
+          <Text style={[styles.whoBody, { color: palette.muted }]}>{COPY.account.signedOutBody}</Text>
+        </View>
+      </View>
+      <View style={styles.buttons}>
+        <AuthButton
+          palette={palette}
+          label={COPY.account.logIn}
+          filled={false}
+          busy={busy && pressed === "logIn"}
+          disabled={busy}
+          onPress={() => start("logIn")}
+        />
+        <AuthButton
+          palette={palette}
+          label={COPY.account.signUp}
+          filled
+          busy={busy && pressed === "signUp"}
+          disabled={busy}
+          onPress={() => start("signUp")}
+        />
       </View>
       {error ? (
         <Text style={[styles.error, { color: palette.left }]} accessibilityLiveRegion="polite">
           {error}
         </Text>
-      ) : null}
+      ) : (
+        <Text style={[styles.caption, { color: palette.muted }]}>{COPY.account.viaGoogle}</Text>
+      )}
     </View>
   );
 }
 
-function SignedIn({ palette, user }: { palette: Palette; user: User }) {
+type AuthButtonProps = { palette: Palette; label: string; filled: boolean; busy: boolean; disabled: boolean; onPress: () => void };
+
+function AuthButton({ palette, label, filled, busy, disabled, onPress }: AuthButtonProps) {
+  const text = filled ? palette.card : palette.ink;
+  return (
+    <Pressable
+      onPress={onPress}
+      disabled={disabled}
+      accessibilityRole="button"
+      accessibilityState={{ busy, disabled }}
+      style={({ pressed }) => [
+        styles.authButton,
+        filled ? { backgroundColor: palette.ink } : { borderColor: palette.ink, borderWidth: 1.5 },
+        (pressed || (disabled && !busy)) && { opacity: 0.6 },
+      ]}
+    >
+      {busy ? <ActivityIndicator size="small" color={text} /> : <Text style={[styles.authLabel, { color: text }]}>{label}</Text>}
+    </Pressable>
+  );
+}
+
+function Profile({ palette, user }: { palette: Palette; user: User }) {
+  const [failed, setFailed] = useState(false);
+  return (
+    <View style={[styles.panel, styles.header, styles.headerTop, { backgroundColor: palette.card }]}>
+      {user.pictureUrl && !failed ? (
+        <Image
+          source={{ uri: user.pictureUrl }}
+          style={[styles.avatar, { backgroundColor: palette.hairline }]}
+          onError={() => setFailed(true)}
+          accessibilityIgnoresInvertColors
+          accessible={false}
+        />
+      ) : (
+        <View style={[styles.avatar, styles.avatarEmpty, { backgroundColor: palette.neutral }]}>
+          <Text style={[styles.monogram, { color: palette.onNeutral }]}>{initials(user.name ?? user.email)}</Text>
+        </View>
+      )}
+      <View style={styles.who}>
+        {user.name ? (
+          <Text style={[styles.name, { color: palette.ink }]} numberOfLines={1}>
+            {user.name}
+          </Text>
+        ) : null}
+        <Text style={[styles.whoBody, { color: palette.muted }]} numberOfLines={1}>
+          {user.email}
+        </Text>
+      </View>
+    </View>
+  );
+}
+
+function AccountActions({ palette }: { palette: Palette }) {
   const [busy, setBusy] = useState(false);
 
   const confirmDelete = () =>
@@ -81,88 +227,123 @@ function SignedIn({ palette, user }: { palette: Palette; user: User }) {
     );
 
   return (
-    <>
-      <View style={[styles.panel, styles.profile, { backgroundColor: palette.card }]}>
-        <Avatar palette={palette} user={user} />
-        <View style={styles.who}>
-          {user.name ? (
-            <Text style={[styles.name, { color: palette.ink }]} numberOfLines={1}>
-              {user.name}
-            </Text>
-          ) : null}
-          <Text style={[styles.email, { color: palette.muted }]} numberOfLines={1}>
-            {user.email}
-          </Text>
-        </View>
-      </View>
-
-      <View style={[styles.panel, styles.rows, { backgroundColor: palette.card }]}>
-        <Row palette={palette} label="Sign out" disabled={busy} onPress={() => void signOut()} />
-      </View>
-
-      <Pressable
-        onPress={confirmDelete}
-        disabled={busy}
-        accessibilityRole="button"
-        style={({ pressed }) => [styles.delete, (pressed || busy) && { opacity: 0.5 }]}
-      >
-        <Text style={[styles.deleteText, { color: palette.left }]}>Delete account</Text>
-      </Pressable>
-    </>
+    <Section palette={palette} label="Account">
+      <Row palette={palette} icon={SignOutIcon} label="Sign out" disabled={busy} onPress={() => void signOut()} />
+      <Row palette={palette} label="Delete account" danger disabled={busy} onPress={confirmDelete} />
+    </Section>
   );
 }
 
-function Avatar({ palette, user }: { palette: Palette; user: User }) {
-  const [failed, setFailed] = useState(false);
-  if (user.pictureUrl && !failed)
-    return (
-      <Image
-        source={{ uri: user.pictureUrl }}
-        style={[styles.avatar, { backgroundColor: palette.hairline }]}
-        onError={() => setFailed(true)}
-        accessibilityIgnoresInvertColors
-        accessible={false}
-      />
-    );
+function Section({ palette, label, children }: { palette: Palette; label: string; children: ReactNode }) {
+  const rows = (Array.isArray(children) ? children : [children]).filter(Boolean);
   return (
-    <View style={[styles.avatar, styles.monogram, { backgroundColor: palette.neutral }]}>
-      <Text style={[styles.monogramText, { color: palette.onNeutral }]}>{initials(user.name ?? user.email)}</Text>
+    <View style={styles.section}>
+      <Text style={[styles.sectionLabel, { color: palette.muted }]} accessibilityRole="header">
+        {label.toUpperCase()}
+      </Text>
+      <View style={[styles.panel, styles.group, { backgroundColor: palette.card }]}>
+        {rows.map((row, i) => (
+          <Fragment key={i}>
+            {i > 0 ? <View style={[styles.divider, { backgroundColor: palette.hairline }]} /> : null}
+            {row}
+          </Fragment>
+        ))}
+      </View>
     </View>
   );
 }
 
-function Row({ palette, label, disabled, onPress }: { palette: Palette; label: string; disabled?: boolean; onPress: () => void }) {
+type RowProps = {
+  palette: Palette;
+  label: string;
+  icon?: (props: { color: string; size?: number }) => ReactNode;
+  value?: string;
+  soon?: boolean;
+  muted?: boolean;
+  danger?: boolean;
+  disabled?: boolean;
+  onPress?: () => void;
+};
+
+function Row({ palette, label, icon: Icon, value, soon, muted, danger, disabled, onPress }: RowProps) {
+  const ink = danger ? palette.left : muted || soon ? palette.muted : palette.ink;
+  const content = (
+    <>
+      {Icon ? (
+        <View style={styles.icon}>
+          <Icon color={ink} size={22} />
+        </View>
+      ) : null}
+      <Text style={[styles.rowLabel, { color: ink }, danger && styles.danger]} numberOfLines={1}>
+        {label}
+      </Text>
+      {value ? <Text style={[styles.rowValue, { color: palette.muted }]}>{value}</Text> : null}
+      {soon ? (
+        <View style={[styles.soon, { backgroundColor: palette.hairline }]}>
+          <Text style={[styles.soonText, { color: palette.muted }]}>{COPY.account.soon}</Text>
+        </View>
+      ) : null}
+      {onPress && !danger ? <ChevronIcon color={palette.muted} /> : null}
+    </>
+  );
+  if (!onPress)
+    return (
+      <View style={styles.row} accessible accessibilityLabel={soon ? `${label}, coming soon` : label}>
+        {content}
+      </View>
+    );
   return (
     <Pressable
       onPress={onPress}
       disabled={disabled}
       accessibilityRole="button"
+      accessibilityLabel={value ? `${label}, ${value}` : label}
       style={({ pressed }) => [styles.row, (pressed || disabled) && { opacity: 0.5 }]}
     >
-      <Text style={[styles.rowText, { color: palette.ink }]}>{label}</Text>
+      {content}
     </Pressable>
   );
 }
 
+// Opens the page once its URL is set (M7); until then it reads "Soon".
+function LegalRow({ palette, icon, label, url }: { palette: Palette; icon: RowProps["icon"]; label: string; url: string }) {
+  return url ? (
+    <Row palette={palette} icon={icon} label={label} onPress={() => void WebBrowser.openBrowserAsync(url)} />
+  ) : (
+    <Row palette={palette} icon={icon} label={label} soon />
+  );
+}
+
+const ICON_COLUMN = 38;
+
 const styles = StyleSheet.create({
-  screen: { paddingHorizontal: metrics.cardInset * 2, paddingBottom: 32, gap: 12 },
-  title: { fontFamily: fonts.headline, fontSize: 26, lineHeight: 30, letterSpacing: -0.39, marginBottom: 8, paddingHorizontal: 4 },
-  panel: { borderRadius: metrics.cardRadius, padding: 20 },
-  eyebrow: { fontFamily: fonts.semibold, fontSize: 11, letterSpacing: 1.4 },
-  headline: { fontFamily: fonts.headline, fontSize: 24, lineHeight: 28, letterSpacing: -0.36, marginTop: 8 },
-  body: { fontFamily: fonts.regular, fontSize: 15, lineHeight: 22, marginTop: 8 },
-  button: { marginTop: 20 },
+  screen: { paddingHorizontal: metrics.cardInset * 2, paddingBottom: 32 },
+  title: { fontFamily: fonts.headline, fontSize: 30, lineHeight: 34, letterSpacing: -0.45, marginBottom: 16, paddingHorizontal: 4 },
+  panel: { borderRadius: metrics.cardRadius },
+  header: { padding: 20 },
+  headerTop: { flexDirection: "row", alignItems: "center", gap: 14 },
+  avatar: { width: 64, height: 64, borderRadius: 32 },
+  avatarEmpty: { alignItems: "center", justifyContent: "center" },
+  monogram: { fontFamily: fonts.semibold, fontSize: 22 },
+  who: { flex: 1, gap: 3 },
+  name: { fontFamily: fonts.semibold, fontSize: 18, lineHeight: 24 },
+  whoBody: { fontFamily: fonts.regular, fontSize: 14, lineHeight: 20 },
+  buttons: { flexDirection: "row", gap: 10, marginTop: 18 },
+  authButton: { flex: 1, height: 48, borderRadius: 24, alignItems: "center", justifyContent: "center" },
+  authLabel: { fontFamily: fonts.semibold, fontSize: 15 },
+  caption: { fontFamily: fonts.regular, fontSize: 12, lineHeight: 16, textAlign: "center", marginTop: 10 },
   error: { fontFamily: fonts.medium, fontSize: 13, lineHeight: 18, textAlign: "center", marginTop: 10 },
-  profile: { flexDirection: "row", alignItems: "center", gap: 14 },
-  avatar: { width: 56, height: 56, borderRadius: 28 },
-  monogram: { alignItems: "center", justifyContent: "center" },
-  monogramText: { fontFamily: fonts.semibold, fontSize: 20 },
-  who: { flex: 1, gap: 2 },
-  name: { fontFamily: fonts.semibold, fontSize: 17 },
-  email: { fontFamily: fonts.regular, fontSize: 14 },
-  rows: { paddingVertical: 4 },
-  row: { minHeight: 48, justifyContent: "center" },
-  rowText: { fontFamily: fonts.medium, fontSize: 16 },
-  delete: { minHeight: 48, alignItems: "center", justifyContent: "center", marginTop: 8 },
-  deleteText: { fontFamily: fonts.semibold, fontSize: 15 },
+  section: { marginTop: 24 },
+  sectionLabel: { fontFamily: fonts.semibold, fontSize: 11, letterSpacing: 1.2, marginBottom: 8, paddingHorizontal: 16 },
+  group: { paddingHorizontal: 16 },
+  divider: { height: StyleSheet.hairlineWidth * 2, marginLeft: ICON_COLUMN },
+  row: { minHeight: 52, flexDirection: "row", alignItems: "center", gap: 8 },
+  icon: { width: ICON_COLUMN - 8, alignItems: "flex-start" },
+  rowLabel: { flex: 1, fontFamily: fonts.medium, fontSize: 16 },
+  rowValue: { fontFamily: fonts.regular, fontSize: 15 },
+  danger: { fontFamily: fonts.semibold },
+  soon: { borderRadius: 10, paddingHorizontal: 8, paddingVertical: 3 },
+  soonText: { fontFamily: fonts.semibold, fontSize: 11, letterSpacing: 0.4 },
+  pickerRow: { minHeight: 52, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  pickerDivider: { height: StyleSheet.hairlineWidth * 2 },
 });

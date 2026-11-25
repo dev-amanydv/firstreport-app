@@ -80,6 +80,8 @@ describe("perspective colours", () => {
     for (const palette of [light, dark]) {
       expect(contrast(palette.left, palette.card)).toBeGreaterThanOrEqual(4.5);
       expect(contrast(palette.onNeutral, palette.neutral)).toBeGreaterThanOrEqual(4.5);
+      // The filled Sign up button: card-coloured text on ink.
+      expect(contrast(palette.card, palette.ink)).toBeGreaterThanOrEqual(4.5);
     }
   });
 });
