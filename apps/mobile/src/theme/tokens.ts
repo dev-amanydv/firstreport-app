@@ -17,6 +17,8 @@ export const light = {
   logoBg: "#FFFFFF",
   logoEdge: "rgba(0,0,0,0.12)",
   neutral: "#1B7A4B",
+  // Text and marks drawn on a Neutral-green fill.
+  onNeutral: "#FFFFFF",
   left: "#B3362B",
   right: "#6B3FA0",
 };
@@ -38,6 +40,7 @@ export const dark: Palette = {
   logoBg: "#FFFFFF",
   logoEdge: "rgba(255,255,255,0.16)",
   neutral: "#3FA674",
+  onNeutral: "#0B0B0B",
   left: "#E0675B",
   right: "#A585D6",
 };

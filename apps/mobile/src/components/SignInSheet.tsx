@@ -186,7 +186,7 @@ export function SignInSheet({ palette, visible, cards, onClose }: Props) {
               {done ? (
                 <Animated.View style={[StyleSheet.absoluteFill, styles.welcome, welcomeStyle]} accessibilityLiveRegion="assertive">
                   <View style={[styles.check, { backgroundColor: palette.neutral }]}>
-                    <CheckIcon color="#FFFFFF" />
+                    <CheckIcon color={palette.onNeutral} />
                   </View>
                   <Text style={[styles.headline, styles.center, { color: palette.ink }]}>{COPY.welcome(user ? firstName(user) : null)}</Text>
                   <Text style={[styles.body, styles.center, { color: palette.muted }]}>{COPY.welcomeBody}</Text>

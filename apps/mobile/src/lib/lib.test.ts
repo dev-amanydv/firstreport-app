@@ -74,6 +74,13 @@ describe("perspective colours", () => {
       }
     }
   });
+
+  it("keep sign-in text readable: the error line and marks on the green fill", () => {
+    for (const palette of [light, dark]) {
+      expect(contrast(palette.left, palette.card)).toBeGreaterThanOrEqual(4.5);
+      expect(contrast(palette.onNeutral, palette.neutral)).toBeGreaterThanOrEqual(4.5);
+    }
+  });
 });
 
 describe("source logos", () => {
