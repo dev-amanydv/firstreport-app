@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { dark, light } from "../theme/tokens";
+import { NO_CARDS_SEEN, parseSeen, recordSeen, shouldPrompt } from "./authPrompt";
 import { contrast } from "./contrast";
 import { IMAGE_MAX, IMAGE_MIN, imageHeight, isRendered, progress } from "./layout";
 import { shareText } from "./share";
@@ -98,5 +99,38 @@ describe("source logos", () => {
     expect(logoStack(five.slice(0, 3)).extra).toBe(0);
     expect(logoStackLabel([src("The Hindu")])).toBe("Reported by The Hindu");
     expect(logoStackLabel([src("A"), src("B")])).toBe("Reported by A and B");
+  });
+});
+
+describe("shouldPrompt", () => {
+  it("shows at 3, 5 and 7 cards, then every 7th", () => {
+    const shown = Array.from({ length: 36 }, (_, i) => i).filter(shouldPrompt);
+    expect(shown).toEqual([3, 5, 7, 14, 21, 28, 35]);
+  });
+});
+
+describe("recordSeen", () => {
+  it("counts each card once", () => {
+    let seen = recordSeen(NO_CARDS_SEEN, "a")!;
+    seen = recordSeen(seen, "b")!;
+    expect(seen.count).toBe(2);
+    expect(recordSeen(seen, "a")).toBeNull();
+  });
+
+  it("remembers only the most recent cards", () => {
+    let seen = NO_CARDS_SEEN;
+    for (let i = 0; i < 60; i++) seen = recordSeen(seen, `c${i}`)!;
+    expect(seen.count).toBe(60);
+    expect(seen.recent).toHaveLength(50);
+    expect(seen.recent[0]).toBe("c10");
+  });
+});
+
+describe("parseSeen", () => {
+  it("reads stored state and resets anything malformed", () => {
+    expect(parseSeen(JSON.stringify({ count: 4, recent: ["a", 3, "b"] }))).toEqual({ count: 4, recent: ["a", "b"] });
+    expect(parseSeen(null)).toEqual(NO_CARDS_SEEN);
+    expect(parseSeen("{oops")).toEqual(NO_CARDS_SEEN);
+    expect(parseSeen(JSON.stringify({ count: -1, recent: [] }))).toEqual(NO_CARDS_SEEN);
   });
 });
