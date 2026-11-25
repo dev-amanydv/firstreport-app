@@ -7,7 +7,7 @@ You are the engineering partner on **FirstReport**, a mobile-first Indian news a
 ## 0\. Current status (keep this section up to date)
 
 - **Done:** M1 (ingest), M2 (embeddings + Events, thresholds tuned from labelled data), M3 (cards, prompt v2), M4 (Stories, summaries, material-change rewrites, budget brake, nightly job). M5 is built (`apps/api`: public `/v1` API, admin, cost page), and the worker and API run under Docker Compose (`--profile app`).
-- **In progress:** M6. The home screen and the History and Story-so-far sheets are built in `apps/mobile` (Expo SDK 58), following the design in `packages/designs`. Next: Account (dark-mode toggle; the About perspectives entry only when `/v1/config.perspectives` is true). The M5 gate (7 days unattended under $1.50/day) still has to be run.
+- **In progress:** M6. The home screen and the History and Story-so-far sheets are built in `apps/mobile` (Expo SDK 58), following the design in `packages/designs`. **M6b (optional Google sign-in) is built**: the sign-in sheet after cards 3, 5, 7 then every 7th, the Account tab (profile, sign out, delete account), and `/v1/auth/*`; the Google client IDs are `REPLACE_ME` placeholders until the developer adds them. Next: the rest of Account (dark-mode toggle; the About perspectives entry only when `/v1/config.perspectives` is true). The M5 gate (7 days unattended under $1.50/day) still has to be run.
 - **Still open from M4:** the nightly `pg_dump` → R2 upload and the alert webhook are deferred to M7. Alerts are only logged (`ALERT:` lines) for now.
 - **Still yours:** the 13 `TODO` feed URLs in the seed.
 - **Perspectives are paused** (2026-11-25). Left/right perspectives and the "contested" call are behind `PERSPECTIVES_ENABLED` (off unless `"true"`). While it is off, Gemini is asked for facts only (card prompt v3), the API sends no `contested`/`left`/`right` and no perspective keys in `/v1/config`, the admin has no perspective controls, and the app shows plain text with no tabs or labels. Everything about perspectives in this brief applies only while the switch is on.
@@ -56,7 +56,7 @@ FirstReport shows news as full-screen cards:
 | Summary | Updated **incrementally** whenever a Story gets a new Event; **one stored version per Event** |
 | Feed order | Newest first \+ category filter, small boost for multi-source Events |
 | Images | Hotlink the source's `og:image` / RSS media URL with outlet credit; category placeholder as fallback. Never re-host images. |
-| Users | No login. Anonymous device ID (only needed later for polls). |
+| Users | **Optional Google sign-in** (changed 2026-11-25, M6b). Reading never requires an account. Signed-out readers get a dismissible sign-in sheet after their 3rd, 5th and 7th card, then every 7th (`AUTH_PROMPT_AT`, `AUTH_PROMPT_EVERY`); it never opens mid-swipe or over another sheet. Google is the only provider for now. |
 | Language | English only |
 | RAG | **None.** No LangChain, no vector DB service, no retrieval framework. Embeddings live in Postgres (pgvector) and are used only for grouping. Story history is a plain SQL query. |
 | Infra | One small VPS (2 vCPU / 4 GB) running Docker Compose: Postgres \+ worker \+ API (`docker compose --profile app up -d`). Cloudflare in front of the API. **No Redis, no Kubernetes, no queues besides pg-boss.** |
@@ -198,6 +198,11 @@ Unique constraints: `(source_id, canonical_url)`, `(source_id, guid)` where guid
 
 `id, purpose (embed | same_event | card | validate_retry | story_link | summary | material_change), model, input_tokens, output_tokens, cost_usd, latency_ms, ok, error, created_at`. Compute `cost_usd` from a price table in config.
 
+### `users` and `sessions` — optional sign-in (M6b)
+
+`users`: `id, google_sub (unique), email, name, picture_url, created_at, last_login_at`. Upserted on `google_sub` at each sign-in; only Google's `sub`, email, name and picture are stored.
+`sessions`: `id, user_id (fk, on delete cascade), token_hash (unique), created_at, last_used_at`. The token is 32 random bytes handed to the app once; only its sha256 is stored. Deleting a user deletes its sessions.
+
 ### `admin_actions` — append-only
 
 `id, action (hide | unhide | regen | flip_contested | merge_events | move_event | merge_stories | rename_story | toggle_source), target_id, note, created_at`.
@@ -296,6 +301,7 @@ Public, read-only, cacheable:
 - `GET /v1/stories/:id/timeline`: the Story's published Events, oldest first (id, headline, first\_seen\_at).  
 - `GET /v1/stories/:id/summary?asOf=:eventId`: the summary row for that Event; 404 if none.  
 - `GET /v1/categories`  
+- Sign-in (per user, `Cache-Control: private, no-store`, in their own Fastify plugin `apps/api/src/auth/routes.ts` so the public cache header never reaches them): `POST /v1/auth/google { idToken }` → `{ token, user }` (the ID token is checked with `google-auth-library` against `GOOGLE_WEB_CLIENT_ID`; 401 if rejected, 503 while it is unset or `REPLACE_ME`), `GET /v1/me`, `POST /v1/auth/signout`, `DELETE /v1/account` (store policy: in-app deletion). All take `Authorization: Bearer <token>`.
 - `GET /v1/config`: `{ showAiLabel, perspectives: true, minAppVersion }` with perspectives on; `{ minAppVersion }` with them off. Cards leave out `contested`/`left`/`right` entirely while perspectives are off, and the admin hides its perspective controls (`flip-contested` answers 404).
 
 Card payload:
@@ -334,9 +340,10 @@ The UI follows the design artboard in `packages/designs` (a reference mockup: co
 - **Feed:** a vertical pager of full-screen cards. Image on top with "Photo: {outlet}" credit, then a 2px progress bar (position among the category's cards from the last 24 h, `windowTotal`), then the headline, a line under it with the age on the left and tiny overlapping outlet logos on the right (up to 3, then "+N more"; a monogram when a logo fails to load), and the perspective pane. No category label on the card. Infinite scroll via cursor. Coming back after 10 minutes resets to the newest card. On short screens only the image shrinks.  
 - **Perspective pane:** a tab row (Left-leaning · Neutral · Right-leaning) over a horizontal swipe, Left ← Neutral → Right. The underline follows the finger in the pane's colour (Neutral green from the design; Left red and Right purple as in §1). The inactive tabs pulse on the first 3 contested cards. If `contested = false`: no tab row at all, just the neutral text, and horizontal swipe is disabled. If `/v1/config.showAiLabel` is true, show a small "AI-generated viewpoint" tag on the left/right panes.  
 - **Action bar:** hidden until the card is tapped; it hides again on the next card. History (bottom sheet with the timeline; tapping an item opens that Event as a modal card), Story so far (bottom sheet, fetched with `asOf` \= the current Event), Source (opens the top source URL), Share (native share with headline \+ current pane text \+ app link). History/Story so far hidden when `story.eventCount <= 1`.  
-- **Account:** dark mode toggle (the app follows the system until then), an "About perspectives" screen (static text explaining how cards are made). **Explore** has no content yet.  
+- **Sign-in sheet (M6b):** a bottom sheet for signed-out readers after cards 3, 5, 7, then every 7th (each card counted once, across app opens). It waits until the reader rests on a card and no other sheet, share flow or modal is open. The hero fans the reader's last three card images; one "Continue with Google" button drawn to Google's branding rules; "Not now", the scrim, back and a drag down close it. Copy (`apps/mobile/src/auth/copy.ts`) promises early access only, because saved stories and personalisation are not built.
+- **Account:** sign in when signed out; when signed in, the Google profile, Sign out and Delete account (with confirmation). Dark mode toggle (the app follows the system until then), an "About perspectives" screen (static text explaining how cards are made). **Explore** has no content yet.  
 - **Images:** expo-image with a per-category placeholder on error.  
-- The app makes **no AI calls** and holds **no secrets**.
+- The app makes **no AI calls** and holds **no secrets**. The session token lives in `expo-secure-store`; the Google SDK is used only in `apps/mobile/src/auth/google.ts`.
 
 ---
 
@@ -350,6 +357,8 @@ ADMIN\_USER=
 
 ADMIN\_PASSWORD=
 
+GOOGLE\_WEB\_CLIENT\_ID=       \# OAuth web client ID; REPLACE\_ME = sign-in off
+
 R2\_ACCOUNT\_ID= R2\_ACCESS\_KEY\_ID= R2\_SECRET\_ACCESS\_KEY= R2\_BUCKET=
 
 ALERT\_WEBHOOK\_URL=          \# optional
@@ -357,6 +366,8 @@ ALERT\_WEBHOOK\_URL=          \# optional
 SENTRY\_DSN=                 \# optional
 
 EXPO\_PUBLIC\_API\_BASE\_URL=   \# mobile; Expo reads it from apps/mobile/.env
+
+EXPO\_PUBLIC\_GOOGLE\_WEB\_CLIENT\_ID=  \# mobile; the same web client ID
 
 Provide `.env.example`. Never commit secrets.
 
@@ -372,7 +383,8 @@ Work **one milestone at a time**. At the start of each, post a short plan (files
 4. **M4 — Stories \+ summaries \+ nightly (week 4).** Steps 10–12, the nightly job, the budget brake. **✅ Done** (R2 backup and alert webhook moved to M7).  
 5. **M5 — API \+ admin (week 5).** All endpoints, admin pages, cost page. *Gate:* the pipeline runs 7 days unattended at under \$1.50/day. **✅ Built; gate pending.**  
 6. **M6 — Mobile app (weeks 6–7).** Every screen in §8.  
-7. **M7 — Hardening (week 8).** Sentry, alerts, R2 backups, source-silence alerts, privacy policy screen/link.  
+6b. **M6b — Optional Google sign-in.** Sign-in sheet, Account profile/sign out/delete, `/v1/auth/*`, `users`/`sessions`. **✅ Built** (Google client IDs still placeholders).  
+7. **M7 — Hardening (week 8).** Sentry, alerts, R2 backups, source-silence alerts, privacy policy screen/link (and the terms/privacy URLs in `LEGAL`, `apps/mobile/src/auth/copy.ts`), and a web page for account deletion (Google Play requires a deletion link outside the app).  
 8. **M8 — Closed beta (weeks 9–10).** Play Store internal testing build (EAS), fixes from testers.
 
 ---

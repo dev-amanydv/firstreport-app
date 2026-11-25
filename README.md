@@ -13,7 +13,7 @@ The full product and engineering brief is in [`CLAUDE.md`](CLAUDE.md).
 | M3 Cards                                         | ✅ prompt v2 (perspectives); v3 facts-only while they are paused                       |
 | M4 Stories, summaries, nightly job, budget brake | ✅ (R2 backup and alert webhook moved to M7)                                         |
 | M5 API + admin                                   | ✅ built; gate pending (7 days unattended under $1.50/day)                           |
-| M6 Mobile app                                    | in progress: the home screen, History and Story so far are built; Account comes next |
+| M6 Mobile app                                    | in progress: home screen, History, Story so far, optional Google sign-in (M6b) built; dark-mode toggle next |
 | M7 Hardening, M8 Closed beta                     | not started                                                                          |
 
 ## Repo layout
@@ -80,7 +80,7 @@ For the mobile app you also need one of these:
   Then either create an emulator (Android Studio → Device Manager) or connect a phone with Developer options and USB / wireless debugging on. `adb devices` should list it.
 - **iOS simulator (optional):** Xcode with a simulator runtime installed, and CocoaPods (`brew install cocoapods`).
 
-Expo Go is not enough: the app uses native modules (gesture handler, Reanimated, pager-view), so it runs as a development build that you compile once (step 7).
+Expo Go is not enough: the app uses native modules (gesture handler, Reanimated, pager-view, Google sign-in), so it runs as a development build that you compile once (step 7).
 
 ### 2. Clone, install and configure
 
@@ -100,6 +100,7 @@ Edit the root `.env`. Every app (worker, API, db scripts) loads it with `--env-f
 | `GEMINI_FREE_TIER`                            | `true`                                                  | Keeps you under the free-tier daily caps (see "Gemini free tier" below) |
 | `PERSPECTIVES_ENABLED`                        | `false`                                                 | Left/right perspectives; paused (see "Perspectives (paused)" below)    |
 | `ADMIN_USER`, `ADMIN_PASSWORD`              | anything, e.g. `admin` / `admin`                      | The admin at `/admin` is turned off while either is empty             |
+| `GOOGLE_WEB_CLIENT_ID`                        | `REPLACE_ME` until you have one                         | Google sign-in; the API answers 503 to sign-in while it is a placeholder |
 | `R2_*`, `ALERT_WEBHOOK_URL`, `SENTRY_DSN` | leave empty                                               | Not used until M7                                                       |
 | `EXPO_PUBLIC_API_BASE_URL`                    | leave empty here                                          | The app reads its own `apps/mobile/.env` instead (step 7)             |
 
@@ -310,11 +311,34 @@ Public, read-only, `Cache-Control: public, s-maxage=60`:
 | `GET /v1/stories/:id/summary?asOf=:eventId` | The story-so-far as of that Event, or 404                                                                                                                                              |
 | `GET /v1/categories`, `GET /v1/config`    | Category labels; `{ showAiLabel, minAppVersion }`                                                                                                                                    |
 
+Per user, `Cache-Control: private, no-store` (a separate Fastify plugin, so the public cache header never reaches them):
+
+| Endpoint                     | Does                                                                                         |
+| :--------------------------- | :------------------------------------------------------------------------------------------- |
+| `POST /v1/auth/google`     | `{ idToken }` → `{ token, user }`; 401 for a token Google rejects, 503 while not configured |
+| `GET /v1/me`               | The signed-in user (`Authorization: Bearer <token>`), or 401                                  |
+| `POST /v1/auth/signout`    | Ends that session                                                                            |
+| `DELETE /v1/account`       | Deletes the user and all its sessions                                                       |
+
 The admin at `/admin` uses HTTP basic auth (`ADMIN_USER`/`ADMIN_PASSWORD`; it is off when they are unset). It has Events (hide, unhide, regenerate, flip contested, merge, move to Story), Stories (rename, merge), Sources (toggle) and a 30-day cost page. Regenerate and "make contested" queue a pg-boss `regen` job that the worker runs between ticks, so the API never calls Gemini. Forms are only accepted from the admin's own origin.
+
+## Sign-in (optional)
+
+Reading never needs an account. Signed-out readers see a sign-in sheet after their 3rd, 5th and 7th card, then every 7th (`AUTH_PROMPT_AT`, `AUTH_PROMPT_EVERY` in `config.ts`). Each card counts once, across app opens, and the sheet only opens once the reader rests on a card and no other sheet is open. The Account tab always offers sign-in, and once signed in shows the profile, Sign out and Delete account.
+
+Only Google is offered, through `@react-native-google-signin/google-signin` (wrapped in `apps/mobile/src/auth/google.ts`). The phone gets a Google ID token, `POST /v1/auth/google` checks it with `google-auth-library` and returns an opaque session token (only its sha256 is stored, in `sessions`). The app keeps the token in `expo-secure-store`.
+
+To turn it on:
+
+1. In the Google Cloud console, create OAuth clients: a **Web** client, and an **Android** client with package `in.firstreport.app` and the SHA-1 of your signing key (`cd apps/mobile/android && ./gradlew signingReport` for debug; Play's app-signing key for store builds). For iOS, an **iOS** client too.
+2. Put the Web client ID in `GOOGLE_WEB_CLIENT_ID` (root `.env`) and `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` (`apps/mobile/.env`). For iOS, replace `REPLACE_ME` in the `iosUrlScheme` in `apps/mobile/app.json` with the iOS client's reversed ID.
+3. Rebuild the development build (step 7b) and restart Metro with `--clear`.
+
+The terms and privacy links in the sheet's fine print are plain text until `LEGAL` in `apps/mobile/src/auth/copy.ts` gets URLs (M7). The sheet's words are in `COPY` in the same file.
 
 ## Mobile app
 
-The app reads only the public `/v1` API and holds no secrets. How to point it at the API, build it and run it on an emulator or phone is in [Run it locally](#run-it-locally), step 7.
+The app reads the public `/v1` API, plus the sign-in routes above, and holds no secrets. How to point it at the API, build it and run it on an emulator or phone is in [Run it locally](#run-it-locally), step 7.
 
 App icons and splash logos live in `apps/mobile/assets/images`. `scripts/build-icons.py` makes the icons from `assets/first-report-icon-light.png`: iOS light, dark and tinted, and the Android adaptive icon with a monochrome layer for themed icons. `scripts/build-splash-logo.py` makes the light and dark splash wordmarks from `assets/first-report-logo-light.png`. The command is in each script's header. Android 12+ shows the splash logo inside a 192dp circle, so it is 184dp wide there and 260dp on iOS. After changing them, regenerate the native project: `npx expo prebuild -p android --clean`.
 
