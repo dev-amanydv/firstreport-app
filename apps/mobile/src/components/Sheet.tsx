@@ -4,6 +4,7 @@ import { GestureDetector, GestureHandlerRootView, usePanGesture } from "react-na
 import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { scheduleOnRN } from "react-native-worklets";
+import { useOverlay } from "../overlays";
 import { fonts, metrics, type Palette } from "../theme/tokens";
 
 type Props = { palette: Palette; visible: boolean; title: string; onClose: () => void; children: ReactNode };
@@ -23,6 +24,7 @@ export function Sheet({ palette, visible, title, onClose, children }: Props) {
   const [mounted, setMounted] = useState(visible);
   const shown = useSharedValue(0);
   const drag = useSharedValue(0);
+  useOverlay(mounted);
 
   useEffect(() => {
     if (visible) {

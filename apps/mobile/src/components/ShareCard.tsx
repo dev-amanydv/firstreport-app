@@ -5,6 +5,7 @@ import * as Sharing from "expo-sharing";
 import { captureRef } from "react-native-view-shot";
 import { CATEGORY_SHORT_LABELS, type CardPayload } from "@fr/shared";
 import { SHARE_CARD, shareText } from "../lib/share";
+import { useOverlay } from "../overlays";
 import { logoStackLabel } from "../lib/sources";
 import { storyDate } from "../lib/time";
 import { fonts, light } from "../theme/tokens";
@@ -27,6 +28,8 @@ const IMAGE_WAIT_MS = 3000;
 // handed to the system share sheet. Always light, so it reads the same in any chat app.
 // Falls back to sharing plain text if the capture fails.
 export function ShareCard({ card, pane, text, onDone }: Props) {
+  // The share sheet is on screen while this is mounted.
+  useOverlay(true);
   const ref = useRef<HostInstance>(null);
   const [imageFailed, setImageFailed] = useState(false);
   // The hero image and the logo; capture once both have settled (loaded or failed).

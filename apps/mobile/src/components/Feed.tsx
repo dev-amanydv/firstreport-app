@@ -2,17 +2,24 @@ import { startTransition, useEffect, useMemo, useRef, useState } from "react";
 import { AppState, Pressable, StyleSheet, Text, View, type LayoutChangeEvent } from "react-native";
 import PagerView from "react-native-pager-view";
 import { Image } from "expo-image";
+import { useIsFocused } from "expo-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { CATEGORY_SHORT_LABELS } from "@fr/shared";
 import { useAppConfig, useFeed } from "../api/client";
+import { useSession } from "../auth/session";
+import { markCardSeen } from "../authPrompt";
 import { imageHeight, isRendered, progress, RENDER_AHEAD } from "../lib/layout";
+import { useAnyOverlayOpen } from "../overlays";
 import { fonts, metrics, type Palette } from "../theme/tokens";
 import { Card } from "./Card";
 import type { FeedCategory } from "./CategoryStrip";
+import { SignInSheet } from "./SignInSheet";
 
 const PREFETCH_FROM_END = 5;
 // Coming back after this long starts again from the newest card.
 const STALE_AFTER_MS = 10 * 60_000;
+// The sign-in box waits until the reader has rested on a card this long, so it never cuts into a swipe.
+const PROMPT_SETTLE_MS = 450;
 
 type Props = { palette: Palette; category: FeedCategory | null };
 
@@ -52,6 +59,41 @@ export function Feed({ palette, category }: Props) {
 
   const items = useMemo(() => feed.data?.pages.flatMap((page) => page.items) ?? [], [feed.data]);
   const windowTotal = feed.data?.pages[0]?.windowTotal ?? 0;
+  const currentId = items[index]?.id;
+
+  // Signed-out readers are invited to sign in after their 3rd, 5th and 7th card, then every 7th.
+  const session = useSession();
+  const signedOut = session.status === "signedOut";
+  const focused = useIsFocused();
+  const overlayOpen = useAnyOverlayOpen();
+  const [promptDue, setPromptDue] = useState(false);
+  const [promptOpen, setPromptOpen] = useState(false);
+
+  useEffect(() => {
+    if (!signedOut || !currentId) return;
+    let live = true;
+    void markCardSeen(currentId).then((due) => {
+      if (due && live) setPromptDue(true);
+    });
+    return () => {
+      live = false;
+    };
+  }, [signedOut, currentId]);
+
+  // Opens once the reader pauses: not mid-swipe, not over another sheet, not while another screen is on top.
+  useEffect(() => {
+    if (!promptDue || !signedOut || !focused || overlayOpen) return;
+    const timer = setTimeout(() => {
+      setPromptDue(false);
+      setPromptOpen(true);
+    }, PROMPT_SETTLE_MS);
+    return () => clearTimeout(timer);
+  }, [promptDue, signedOut, focused, overlayOpen, currentId]);
+
+  const heroCards = useMemo(
+    () => items.slice(Math.max(0, index - 2), index + 1).map(({ id, imageUrl, category }) => ({ id, imageUrl, category })),
+    [items, index],
+  );
 
   // The next cards' photos are downloaded before they are swiped in.
   useEffect(() => {
@@ -109,6 +151,7 @@ export function Feed({ palette, category }: Props) {
   return (
     <View style={styles.feed} onLayout={onLayout}>
       {content}
+      <SignInSheet palette={palette} visible={promptOpen} cards={heroCards} onClose={() => setPromptOpen(false)} />
     </View>
   );
 }

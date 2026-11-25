@@ -4,14 +4,21 @@ import { NO_CARDS_SEEN, parseSeen, recordSeen, shouldPrompt, type SeenCards } fr
 // How many cards a signed-out reader has seen, kept across app opens, to time the sign-in box.
 const KEY = "fr.cardsSeen";
 let seen: SeenCards | null = null;
+let loading: Promise<void> | null = null;
 
-export async function loadCardsSeen() {
-  if (seen === null) seen = parseSeen(await AsyncStorage.getItem(KEY).catch(() => null));
-  return seen;
+export function loadCardsSeen() {
+  loading ??= AsyncStorage.getItem(KEY)
+    .catch(() => null)
+    .then((raw) => {
+      seen = parseSeen(raw);
+    });
+  return loading;
 }
 
-// Counts the card once and returns true when this card is a sign-in moment.
-export function markCardSeen(id: string) {
+// Counts the card once and resolves to true when this card is a sign-in moment.
+// Waits for the stored count, so an early card never overwrites it with zero.
+export async function markCardSeen(id: string) {
+  await loadCardsSeen();
   const next = recordSeen(seen ?? NO_CARDS_SEEN, id);
   if (!next) return false;
   seen = next;

@@ -8,6 +8,8 @@ import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
 import * as SystemUI from "expo-system-ui";
+import { loadSession } from "../src/auth/session";
+import { loadCardsSeen } from "../src/authPrompt";
 import { loadHintCount } from "../src/hints";
 import { fonts } from "../src/theme/tokens";
 import { usePalette } from "../src/theme/useTheme";
@@ -15,6 +17,8 @@ import { usePalette } from "../src/theme/useTheme";
 void SplashScreen.preventAutoHideAsync();
 // Read while the fonts load, so the first card already knows whether to hint.
 void loadHintCount();
+void loadCardsSeen();
+void loadSession();
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: 60_000, retry: 2 } },
