@@ -5,10 +5,10 @@ import type { z } from "zod";
 const BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL ?? "http://localhost:3000";
 const PAGE_SIZE = 20;
 
-class HttpError extends Error {
+export class HttpError extends Error {
   status: number;
-  constructor(path: string, status: number) {
-    super(`GET ${path} → ${status}`);
+  constructor(path: string, status: number, method = "GET") {
+    super(`${method} ${path} → ${status}`);
     this.status = status;
   }
 }
@@ -19,6 +19,25 @@ async function get<T extends z.ZodType>(path: string, schema: T): Promise<z.infe
   const response = await fetch(`${BASE_URL}${path}`);
   if (!response.ok) throw new HttpError(path, response.status);
   return schema.parse(await response.json());
+}
+
+type Method = "GET" | "POST" | "DELETE";
+type RequestOptions<T extends z.ZodType> = { token?: string; body?: object; schema?: T };
+
+// Per-user calls (sign-in, account). Never cached; the session token goes in the Authorization header.
+export async function apiRequest<T extends z.ZodType>(
+  method: Method,
+  path: string,
+  options: RequestOptions<T> & { schema: T },
+): Promise<z.infer<T>>;
+export async function apiRequest(method: Method, path: string, options?: Omit<RequestOptions<z.ZodType>, "schema">): Promise<void>;
+export async function apiRequest<T extends z.ZodType>(method: Method, path: string, { token, body, schema }: RequestOptions<T> = {}) {
+  const headers: Record<string, string> = {};
+  if (token) headers.authorization = `Bearer ${token}`;
+  if (body) headers["content-type"] = "application/json";
+  const response = await fetch(`${BASE_URL}${path}`, { method, headers, body: body ? JSON.stringify(body) : undefined });
+  if (!response.ok) throw new HttpError(path, response.status, method);
+  return schema ? schema.parse(await response.json()) : undefined;
 }
 
 // A missing row is an answer, not a failure: no retries, no error state.
