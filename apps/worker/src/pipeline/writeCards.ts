@@ -2,8 +2,8 @@ import { and, asc, eq, events, gte, lt, type Db } from "@fr/db";
 import { CARD_MAX_AGE_HOURS, CARD_MODEL, CARDS_PER_TICK } from "@fr/shared";
 import type { Gemini } from "../gemini/client.js";
 import {
-  CARD_PROMPT_VERSION,
   cardPrompt,
+  cardPromptVersion,
   cardSchema,
   FORCE_CONTESTED_NOTE,
   parseCard,
@@ -28,16 +28,16 @@ function check(raw: unknown, sourceTexts: string[], forceContested: boolean) {
 }
 
 // One card call, and one corrective retry if the card fails validation. Gemini errors propagate.
-// forceContested (admin flip) requires left/right perspectives.
+// forceContested (admin flip) requires left/right perspectives; callers only pass it while perspectives are enabled.
 export async function generateCard(gemini: Gemini, reports: CardReport[], { forceContested = false } = {}): Promise<CardAttempt> {
   const sourceTexts = reports.flatMap((report) => [report.title, report.lede]);
   const note = forceContested ? FORCE_CONTESTED_NOTE : undefined;
 
-  const first = await gemini.askJson("card", cardPrompt(reports, note), cardSchema, CARD_MODEL);
+  const first = await gemini.askJson("card", cardPrompt(reports, note), cardSchema(), CARD_MODEL);
   const checked = check(first, sourceTexts, forceContested);
   if (!checked.errors.length) return { ...checked, retried: false };
 
-  const second = await gemini.askJson("validate_retry", retryPrompt(reports, first, checked.errors, note), cardSchema, CARD_MODEL);
+  const second = await gemini.askJson("validate_retry", retryPrompt(reports, first, checked.errors, note), cardSchema(), CARD_MODEL);
   return { ...check(second, sourceTexts, forceContested), retried: true };
 }
 
@@ -46,13 +46,14 @@ export function cardFields(card: Card) {
     headline: card.headline,
     category: card.category,
     neutral: card.neutral,
+    // All four are null when perspectives are disabled (see parseCard).
     contested: card.contested,
     contestedReason: card.contested ? card.contestedReason : null,
     leftText: card.left,
     rightText: card.right,
     entities: card.entities,
     storyLabel: card.storyLabel,
-    genVersion: CARD_PROMPT_VERSION,
+    genVersion: cardPromptVersion(),
     cardGeneratedAt: new Date(),
   };
 }
@@ -67,7 +68,7 @@ async function publish(db: Db, eventId: string, card: Card) {
 async function markFailed(db: Db, eventId: string) {
   await db
     .update(events)
-    .set({ status: "failed", genVersion: CARD_PROMPT_VERSION })
+    .set({ status: "failed", genVersion: cardPromptVersion() })
     .where(and(eq(events.id, eventId), eq(events.status, "collecting")));
 }
 

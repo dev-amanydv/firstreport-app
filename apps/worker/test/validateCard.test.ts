@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { parseCard, type Card } from "../src/prompts/card.js";
 import { numbersIn, validateCard } from "../src/pipeline/validateCard.js";
 
@@ -18,6 +18,14 @@ function card(overrides: Partial<Card> = {}): Card {
     ...overrides,
   };
 }
+
+// These tests cover perspectives enabled; "with perspectives disabled" blocks switch them off.
+beforeEach(() => {
+  vi.stubEnv("PERSPECTIVES_ENABLED", "true");
+});
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
 
 const words = (n: number) => Array.from({ length: n }, () => "word").join(" ");
 
@@ -97,5 +105,22 @@ describe("parseCard", () => {
     expect(() => parseCard({ ...raw, category: "crime" })).toThrow("card.category");
     expect(() => parseCard({ ...raw, neutral: "" })).toThrow("card.neutral");
     expect(() => parseCard(null)).toThrow();
+  });
+});
+
+describe("with perspectives disabled", () => {
+  beforeEach(() => {
+    vi.stubEnv("PERSPECTIVES_ENABLED", "false");
+  });
+
+  it("parses a facts-only card and ignores any perspective fields", () => {
+    const facts = { headline: "Bridge collapses", category: "national", neutral: "Text.", entities: ["Kesarganj"], story_label: "Kesarganj" };
+    const expected = { contested: null, contestedReason: null, left: null, right: null };
+    expect(parseCard(facts)).toMatchObject(expected);
+    expect(parseCard({ ...facts, contested: true, left: "Critics argue...", right: "Supporters say..." })).toMatchObject(expected);
+  });
+
+  it("skips the perspective checks", () => {
+    expect(validateCard(card({ contested: null, left: null, right: null }), sources)).toEqual([]);
   });
 });

@@ -2,9 +2,9 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createDb, databaseUrl } from "@fr/db";
-import { CARD_MODEL, EVENT_WINDOW_HOURS } from "@fr/shared";
+import { CARD_MODEL, EVENT_WINDOW_HOURS, perspectivesEnabled } from "@fr/shared";
 import { geminiFromEnv } from "../gemini/client.js";
-import { CARD_PROMPT_VERSION, type CardReport } from "../prompts/card.js";
+import { cardPromptVersion, type CardReport } from "../prompts/card.js";
 import { loadCardReports } from "../pipeline/cardInput.js";
 import { generateCard, type CardAttempt } from "../pipeline/writeCards.js";
 
@@ -17,7 +17,9 @@ const count = Number(arg("--n") ?? 30);
 // --from <report.md> re-runs the Events of an earlier report, so two prompt versions compare like for like.
 const fromReport = arg("--from");
 const date = new Date().toISOString().slice(0, 10);
-const reportPath = fileURLToPath(new URL(`../../../../data/cards-${date}-v${CARD_PROMPT_VERSION}.md`, import.meta.url));
+const version = cardPromptVersion();
+const perspectives = perspectivesEnabled();
+const reportPath = fileURLToPath(new URL(`../../../../data/cards-${date}-v${version}.md`, import.meta.url));
 
 const { db, client, close } = createDb(databaseUrl());
 const gemini = geminiFromEnv(db);
@@ -43,10 +45,15 @@ function section(index: number, eventId: string, reports: CardReport[], attempt:
   lines.push(`**Sources (${reports.length}):** ${reports.map((r) => `${r.source}: ${r.title}`).join(" · ")}`, "");
   if (attempt.card) {
     const card = attempt.card;
-    lines.push(`- **Category:** ${card.category} · **Contested:** ${card.contested}${card.contestedReason ? ` (${card.contestedReason})` : ""}`);
-    lines.push(`- **Neutral:** ${card.neutral}`);
-    if (card.left) lines.push(`- **Left:** ${card.left}`);
-    if (card.right) lines.push(`- **Right:** ${card.right}`);
+    if (perspectives) {
+      lines.push(`- **Category:** ${card.category} · **Contested:** ${card.contested}${card.contestedReason ? ` (${card.contestedReason})` : ""}`);
+      lines.push(`- **Neutral:** ${card.neutral}`);
+      if (card.left) lines.push(`- **Left:** ${card.left}`);
+      if (card.right) lines.push(`- **Right:** ${card.right}`);
+    } else {
+      lines.push(`- **Category:** ${card.category}`);
+      lines.push(`- **Text:** ${card.neutral}`);
+    }
     lines.push(`- **Entities:** ${card.entities.join(", ")} · **Story:** #${card.storyLabel}`);
   }
   const verdict = attempt.errors.length ? `❌ invalid: ${attempt.errors.join("; ")}` : "✅ valid";
@@ -67,7 +74,7 @@ async function writeReport() {
   `;
   const header = `# Card report ${date}
 
-Model \`${CARD_MODEL}\`, prompt v${CARD_PROMPT_VERSION}. ${sections.length} Events, ${valid} passed validation, ${contested} contested.
+Model \`${CARD_MODEL}\`, prompt v${version}. ${sections.length} Events, ${valid} passed validation${perspectives ? `, ${contested} contested` : ""}.
 ${usage!.calls} Gemini calls, $${Number(usage!.cost).toFixed(4)} at paid prices.
 Gate: publishable as is for at least 90% of Events (27 of 30).
 `;

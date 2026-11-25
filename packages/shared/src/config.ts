@@ -115,6 +115,13 @@ export const CARD_MAX_SOURCES = 5;
 // The app's progress bar counts the category's cards from this window.
 export const FEED_PROGRESS_WINDOW_HOURS = 24;
 export const SHOW_AI_LABEL = false;
+
+// Left/right perspectives (and the "contested" call that gates them) are paused. Off unless
+// PERSPECTIVES_ENABLED=true: the card prompt then asks Gemini for facts only, and the API and admin
+// show nothing about perspectives. Read at call time so tests can flip it.
+export function perspectivesEnabled() {
+  return process.env.PERSPECTIVES_ENABLED === "true";
+}
 export const MIN_APP_VERSION = "1.0.0";
 export const CATEGORY_LABELS = {
   national: "National & Politics",

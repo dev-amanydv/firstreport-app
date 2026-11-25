@@ -14,9 +14,10 @@ export const cardPayloadSchema = z.object({
   // Name of the outlet the image comes from, for the photo credit.
   imageCredit: z.string().nullable(),
   neutral: z.string(),
-  contested: z.boolean(),
-  left: z.string().nullable(),
-  right: z.string().nullable(),
+  // Only sent while perspectives are enabled on the server (PERSPECTIVES_ENABLED).
+  contested: z.boolean().optional(),
+  left: z.string().nullable().optional(),
+  right: z.string().nullable().optional(),
   sources: z.array(z.object({ name: z.string(), url: z.string() })),
   story: z.object({ id: z.uuid(), eventCount: z.number().int() }).nullable(),
 });
@@ -46,5 +47,10 @@ export type Summary = z.infer<typeof summarySchema>;
 export const categoriesSchema = z.object({ items: z.array(z.object({ id: categorySchema, label: z.string() })) });
 export type Categories = z.infer<typeof categoriesSchema>;
 
-export const appConfigSchema = z.object({ showAiLabel: z.boolean(), minAppVersion: z.string() });
+// showAiLabel and perspectives are only sent while perspectives are enabled on the server.
+export const appConfigSchema = z.object({
+  showAiLabel: z.boolean().optional(),
+  perspectives: z.boolean().optional(),
+  minAppVersion: z.string(),
+});
 export type AppConfig = z.infer<typeof appConfigSchema>;

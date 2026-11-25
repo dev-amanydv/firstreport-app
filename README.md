@@ -1,6 +1,6 @@
 # FirstReport
 
-A mobile-first Indian news aggregator in the style of Inshorts. RSS articles from Indian outlets are grouped into **Events** (one card each), and Events are chained into **Stories**. Gemini writes each card: a neutral summary of up to 60 words, plus left and right perspectives when the story is contested.
+A mobile-first Indian news aggregator in the style of Inshorts. RSS articles from Indian outlets are grouped into **Events** (one card each), and Events are chained into **Stories**. Gemini writes each card: a factual summary of up to 60 words. Left and right perspectives for contested stories are built but paused behind `PERSPECTIVES_ENABLED` (see "Perspectives (paused)" below).
 
 The full product and engineering brief is in [`CLAUDE.md`](CLAUDE.md).
 
@@ -10,7 +10,7 @@ The full product and engineering brief is in [`CLAUDE.md`](CLAUDE.md).
 | :----------------------------------------------- | :----------------------------------------------------------------------------------- |
 | M1 Repo + ingest                                 | ✅                                                                                   |
 | M2 Embeddings + Events                           | ✅ thresholds tuned from labelled pairs                                              |
-| M3 Cards                                         | ✅ prompt v2                                                                         |
+| M3 Cards                                         | ✅ prompt v2 (perspectives); v3 facts-only while they are paused                       |
 | M4 Stories, summaries, nightly job, budget brake | ✅ (R2 backup and alert webhook moved to M7)                                         |
 | M5 API + admin                                   | ✅ built; gate pending (7 days unattended under $1.50/day)                           |
 | M6 Mobile app                                    | in progress: the home screen, History and Story so far are built; Account comes next |
@@ -98,6 +98,7 @@ Edit the root `.env`. Every app (worker, API, db scripts) loads it with `--env-f
 | `TEST_DATABASE_URL`                           | `postgres://fr:fr@localhost:5432/fr_test` (already set) | Used only by `pnpm test`, which truncates it                          |
 | `GEMINI_API_KEY`                              | your key                                                  | Embeddings, cards, Stories, summaries                                   |
 | `GEMINI_FREE_TIER`                            | `true`                                                  | Keeps you under the free-tier daily caps (see "Gemini free tier" below) |
+| `PERSPECTIVES_ENABLED`                        | `false`                                                 | Left/right perspectives; paused (see "Perspectives (paused)" below)    |
 | `ADMIN_USER`, `ADMIN_PASSWORD`              | anything, e.g. `admin` / `admin`                      | The admin at `/admin` is turned off while either is empty             |
 | `R2_*`, `ALERT_WEBHOOK_URL`, `SENTRY_DSN` | leave empty                                               | Not used until M7                                                       |
 | `EXPO_PUBLIC_API_BASE_URL`                    | leave empty here                                          | The app reads its own `apps/mobile/.env` instead (step 7)             |
@@ -351,6 +352,17 @@ The budget brake skips rewrites above $1.50/day and pauses card writing above $3
 - Ingestion is capped at 250 new articles a day (`MAX_NEW_ARTICLES_PER_DAY`).
 
 Set `GEMINI_FREE_TIER=false` in production.
+
+## Perspectives (paused)
+
+Left/right perspectives are off unless `PERSPECTIVES_ENABLED=true`, read by the worker and the API. While it is off:
+
+- The card prompt is the facts-only v3: Gemini's schema has no `contested`, `contested_reason`, `left` or `right`, so it writes none. New cards store those columns as null.
+- The API leaves `contested`/`left`/`right` out of every card (even cards stored with them) and `showAiLabel`/`perspectives` out of `/v1/config`.
+- The admin shows no perspective texts or flip button, and `flip-contested` answers 404. A queued flip job is dropped.
+- The app needs no change: a card without `contested: true` is plain text with no tabs, labels or swipe.
+
+Turning it on brings back prompt v2 and everything above, with no app release. Old cards keep their stored perspectives; cards written while it was off have none until they are regenerated.
 
 ## Configuration
 

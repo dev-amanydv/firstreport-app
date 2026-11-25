@@ -1,4 +1,4 @@
-import { CARD_MAX_WORDS, HEADLINE_MAX_WORDS } from "@fr/shared";
+import { CARD_MAX_WORDS, HEADLINE_MAX_WORDS, perspectivesEnabled } from "@fr/shared";
 import type { Card } from "../prompts/card.js";
 
 export function wordCount(text: string) {
@@ -21,14 +21,17 @@ export function validateCard(card: Card, sourceTexts: string[]) {
 
   checkLength(errors, "headline", card.headline, HEADLINE_MAX_WORDS);
   checkLength(errors, "neutral", card.neutral, CARD_MAX_WORDS);
-  checkLength(errors, "left", card.left, CARD_MAX_WORDS);
-  checkLength(errors, "right", card.right, CARD_MAX_WORDS);
 
-  if (card.contested && (!card.left || !card.right)) {
-    errors.push(`"contested" is true, so "left" and "right" must both be written`);
-  }
-  if (!card.contested && (card.left || card.right)) {
-    errors.push(`"contested" is false, so "left" and "right" must be null`);
+  // With perspectives disabled the card has no left/right fields, so there is nothing more to check.
+  if (perspectivesEnabled()) {
+    checkLength(errors, "left", card.left, CARD_MAX_WORDS);
+    checkLength(errors, "right", card.right, CARD_MAX_WORDS);
+    if (card.contested && (!card.left || !card.right)) {
+      errors.push(`"contested" is true, so "left" and "right" must both be written`);
+    }
+    if (!card.contested && (card.left || card.right)) {
+      errors.push(`"contested" is false, so "left" and "right" must be null`);
+    }
   }
 
   const known = new Set(sourceTexts.flatMap(numbersIn));

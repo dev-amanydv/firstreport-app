@@ -1,5 +1,5 @@
 import { and, articles, asc, desc, eq, events, sql, sources, stories, storySummaries, type Db } from "@fr/db";
-import { CARD_MAX_SOURCES, FEED_BOOST_MAX_ARTICLES, FEED_BOOST_MINUTES, FEED_PROGRESS_WINDOW_HOURS, type CardPayload, type Category } from "@fr/shared";
+import { CARD_MAX_SOURCES, FEED_BOOST_MAX_ARTICLES, FEED_BOOST_MINUTES, FEED_PROGRESS_WINDOW_HOURS, perspectivesEnabled, type CardPayload, type Category } from "@fr/shared";
 
 // Newest first, with a small boost for Events that many outlets cover.
 const sortKey = sql`(${events.firstSeenAt} + least(${events.articleCount}, ${FEED_BOOST_MAX_ARTICLES}::int) * (${FEED_BOOST_MINUTES}::int * interval '1 minute'))`;
@@ -76,8 +76,7 @@ async function imageCreditsFor(db: Db, eventIds: string[]) {
 }
 
 function toCard(row: CardRow, cardSources: { name: string; url: string }[], imageCredit: string | null): CardPayload {
-  const contested = row.contested ?? false;
-  return {
+  const card: CardPayload = {
     id: row.id,
     headline: row.headline ?? "",
     category: row.category ?? "other",
@@ -85,12 +84,13 @@ function toCard(row: CardRow, cardSources: { name: string; url: string }[], imag
     imageUrl: row.imageUrl,
     imageCredit: row.imageUrl ? imageCredit : null,
     neutral: row.neutral ?? "",
-    contested,
-    left: contested ? row.leftText : null,
-    right: contested ? row.rightText : null,
     sources: cardSources,
     story: row.storyId ? { id: row.storyId, eventCount: row.storyEventCount ?? 1 } : null,
   };
+  // While perspectives are disabled the keys are left out entirely, even for cards stored with them.
+  if (!perspectivesEnabled()) return card;
+  const contested = row.contested ?? false;
+  return { ...card, contested, left: contested ? row.leftText : null, right: contested ? row.rightText : null };
 }
 
 async function withSources(db: Db, rows: CardRow[]) {

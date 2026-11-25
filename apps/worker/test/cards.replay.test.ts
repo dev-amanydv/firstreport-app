@@ -1,8 +1,8 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { articles, eq, events, sources, sql, type Database } from "@fr/db";
 import { CARD_MAX_AGE_HOURS } from "@fr/shared";
 import { DailyQuotaReached, type Gemini } from "../src/gemini/client.js";
-import { CARD_PROMPT_VERSION } from "../src/prompts/card.js";
+import { CARD_PROMPT_VERSION_FACTS, CARD_PROMPT_VERSION_PERSPECTIVES } from "../src/prompts/card.js";
 import { writeCards } from "../src/pipeline/writeCards.js";
 import { normalize } from "../src/vector.js";
 import { openTestDb } from "@fr/db/testing";
@@ -77,6 +77,14 @@ afterAll(async () => {
   await database.close();
 });
 
+// These tests cover perspectives enabled; "with perspectives disabled" blocks switch them off.
+beforeEach(() => {
+  vi.stubEnv("PERSPECTIVES_ENABLED", "true");
+});
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
+
 describe("writeCards", () => {
   it("publishes a valid card with every field filled", async () => {
     const id = await addEvent();
@@ -94,7 +102,7 @@ describe("writeCards", () => {
       rightText: null,
       entities: ["Kesarganj"],
       storyLabel: "KesarganjBridgeCollapse",
-      genVersion: CARD_PROMPT_VERSION,
+      genVersion: CARD_PROMPT_VERSION_PERSPECTIVES,
     });
     expect((await eventRow(id)).cardGeneratedAt).toBeInstanceOf(Date);
 
@@ -157,5 +165,32 @@ describe("writeCards", () => {
     await writeCards(db, gemini, tickStartedAt);
     expect(gemini.askJson).not.toHaveBeenCalled();
     expect((await eventRow(id)).status).toBe("hidden");
+  });
+});
+
+describe("writeCards with perspectives disabled", () => {
+  beforeEach(() => {
+    vi.stubEnv("PERSPECTIVES_ENABLED", "false");
+  });
+
+  it("asks Gemini for facts only and stores no perspective fields", async () => {
+    const id = await addEvent();
+    const { contested: _c, contested_reason: _r, left: _l, right: _rt, ...facts } = goodCard;
+    gemini.askJson.mockResolvedValueOnce(facts);
+
+    expect(await writeCards(db, gemini, tickStartedAt)).toMatchObject({ published: 1 });
+    expect(await eventRow(id)).toMatchObject({
+      status: "published",
+      neutral: goodCard.neutral,
+      contested: null,
+      contestedReason: null,
+      leftText: null,
+      rightText: null,
+      genVersion: CARD_PROMPT_VERSION_FACTS,
+    });
+
+    const [, prompt, schema] = gemini.askJson.mock.calls[0]!;
+    expect(prompt).not.toMatch(/left|right|contested|critic|supporter/i);
+    expect(Object.keys((schema as { properties: object }).properties).sort()).toEqual(["category", "entities", "headline", "neutral", "story_label"]);
   });
 });

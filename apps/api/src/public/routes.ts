@@ -1,7 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import type { Db } from "@fr/db";
-import { CATEGORY_LABELS, categorySchema, FEED_PAGE_DEFAULT, FEED_PAGE_MAX, MIN_APP_VERSION, PUBLIC_CACHE_SECONDS, SHOW_AI_LABEL } from "@fr/shared";
+import { CATEGORY_LABELS, categorySchema, FEED_PAGE_DEFAULT, FEED_PAGE_MAX, MIN_APP_VERSION, perspectivesEnabled, PUBLIC_CACHE_SECONDS, SHOW_AI_LABEL } from "@fr/shared";
 import { decodeCursor, eventCard, feed, summary, timeline } from "./queries.js";
 
 const feedQuery = z.object({
@@ -48,5 +48,10 @@ export async function publicRoutes(app: FastifyInstance, { db }: { db: Db }) {
     items: Object.entries(CATEGORY_LABELS).map(([id, label]) => ({ id, label })),
   }));
 
-  app.get("/config", async () => ({ showAiLabel: SHOW_AI_LABEL, minAppVersion: MIN_APP_VERSION }));
+  // Perspective keys are left out while perspectives are disabled, so the app shows nothing about them.
+  app.get("/config", async () =>
+    perspectivesEnabled()
+      ? { showAiLabel: SHOW_AI_LABEL, perspectives: true, minAppVersion: MIN_APP_VERSION }
+      : { minAppVersion: MIN_APP_VERSION },
+  );
 }

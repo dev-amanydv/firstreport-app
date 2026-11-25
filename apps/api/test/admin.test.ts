@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { adminActions, articles, eq, events, llmCalls, sources, sql, stories, storySummaries, type Database } from "@fr/db";
 import { openTestDb } from "@fr/db/testing";
 import { REGEN_QUEUE } from "@fr/shared";
@@ -27,6 +27,14 @@ beforeEach(async () => {
 afterAll(async () => {
   await app.close();
   await database.close();
+});
+
+// These tests cover perspectives enabled; "with perspectives disabled" blocks switch them off.
+beforeEach(() => {
+  vi.stubEnv("PERSPECTIVES_ENABLED", "true");
+});
+afterEach(() => {
+  vi.unstubAllEnvs();
 });
 
 function get(url: string) {
@@ -120,6 +128,19 @@ describe("Event actions", () => {
     expect(queue.send).toHaveBeenCalledWith(REGEN_QUEUE, { eventId: factsOnly.id, forceContested: true });
     expect((await eventRow(factsOnly.id)).contested).toBe(false);
     expect((await actions()).map((row) => row.note)).toEqual(["to facts-only", "to contested (regen queued)"]);
+  });
+
+  it("has no perspective controls while perspectives are disabled", async () => {
+    vi.stubEnv("PERSPECTIVES_ENABLED", "false");
+    const event = await addEvent(db, { contested: true, contestedReason: "why", leftText: "Left text", rightText: "Right text" });
+
+    expect((await post(`/admin/events/${event.id}/flip-contested`)).statusCode).toBe(404);
+    expect(queue.send).not.toHaveBeenCalled();
+    expect(await eventRow(event.id)).toMatchObject({ contested: true, leftText: "Left text" });
+
+    const page = (await get(`/admin/events/${event.id}`)).body;
+    expect(page).not.toMatch(/flip-contested|Left text|Right text|Contested|Facts only|Neutral:/);
+    expect((await get("/admin/events")).body).not.toContain("contested");
   });
 
   it("merges an Event into another", async () => {

@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { articles, eq, events, sources, sql, type Database } from "@fr/db";
 import { openTestDb } from "@fr/db/testing";
 import type { Gemini } from "../src/gemini/client.js";
@@ -72,6 +72,14 @@ afterAll(async () => {
   await database.close();
 });
 
+// These tests cover perspectives enabled; "with perspectives disabled" blocks switch them off.
+beforeEach(() => {
+  vi.stubEnv("PERSPECTIVES_ENABLED", "true");
+});
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
+
 describe("regenCard", () => {
   it("publishes a failed Event when the new card is valid, without counting a regen", async () => {
     const id = await addEvent("failed");
@@ -97,6 +105,13 @@ describe("regenCard", () => {
     expect(gemini.askJson.mock.calls[0]![1]).toContain(FORCE_CONTESTED_NOTE);
     expect(gemini.askJson.mock.calls[1]![1]).toContain("contested must be true");
     expect(await eventRow(id)).toMatchObject({ contested: true, leftText: contested.left, rightText: contested.right });
+  });
+
+  it("drops a forceContested job while perspectives are disabled", async () => {
+    vi.stubEnv("PERSPECTIVES_ENABLED", "false");
+    const id = await addEvent("published", { contested: false });
+    expect(await regenCard(db, gemini, { eventId: id, forceContested: true })).toBe("skipped");
+    expect(gemini.askJson).not.toHaveBeenCalled();
   });
 
   it("skips Events that are still collecting", async () => {

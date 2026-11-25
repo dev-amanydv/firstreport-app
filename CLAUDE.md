@@ -7,9 +7,10 @@ You are the engineering partner on **FirstReport**, a mobile-first Indian news a
 ## 0\. Current status (keep this section up to date)
 
 - **Done:** M1 (ingest), M2 (embeddings + Events, thresholds tuned from labelled data), M3 (cards, prompt v2), M4 (Stories, summaries, material-change rewrites, budget brake, nightly job). M5 is built (`apps/api`: public `/v1` API, admin, cost page), and the worker and API run under Docker Compose (`--profile app`).
-- **In progress:** M6. The home screen and the History and Story-so-far sheets are built in `apps/mobile` (Expo SDK 58), following the design in `packages/designs`. Next: Account (dark-mode toggle, About perspectives). The M5 gate (7 days unattended under $1.50/day) still has to be run.
+- **In progress:** M6. The home screen and the History and Story-so-far sheets are built in `apps/mobile` (Expo SDK 58), following the design in `packages/designs`. Next: Account (dark-mode toggle; the About perspectives entry only when `/v1/config.perspectives` is true). The M5 gate (7 days unattended under $1.50/day) still has to be run.
 - **Still open from M4:** the nightly `pg_dump` → R2 upload and the alert webhook are deferred to M7. Alerts are only logged (`ALERT:` lines) for now.
 - **Still yours:** the 13 `TODO` feed URLs in the seed.
+- **Perspectives are paused** (2026-11-25). Left/right perspectives and the "contested" call are behind `PERSPECTIVES_ENABLED` (off unless `"true"`). While it is off, Gemini is asked for facts only (card prompt v3), the API sends no `contested`/`left`/`right` and no perspective keys in `/v1/config`, the admin has no perspective controls, and the app shows plain text with no tabs or labels. Everything about perspectives in this brief applies only while the switch is on.
 - **Dev runs on the Gemini free tier** (`GEMINI_FREE_TIER`, on unless set to `false`). That is why the code has daily request caps, a daily article cap and fewer seeded feeds. Production sets `GEMINI_FREE_TIER=false`. See §6, "Free-tier and cost guards".
 - Where the code differs from the original brief, the brief below has been updated to match the code. The reasons are in the commit messages.
 
@@ -22,7 +23,7 @@ See `README.md` for setup, commands and the repo layout.
 FirstReport shows news as full-screen cards:
 
 - **Swipe up/down:** next or previous news card. Newest first, filterable by category.  
-- **Swipe left/right on a card:** switch perspective.  
+- **Swipe left/right on a card:** switch perspective. *(Paused: only while `PERSPECTIVES_ENABLED=true`, see §0.)*  
   - Center (default) \= **Neutral** fact-based summary (green badge)  
   - Swipe right \= **Left-wing** perspective (red badge)  
   - Swipe left \= **Right-wing** perspective (purple badge)  
@@ -47,7 +48,7 @@ FirstReport shows news as full-screen cards:
 | Scale | 15–25 English-language Indian sources, \~1–2k articles/day, giving \~150–300 Events/day |
 | Freshness | Worker runs every **15 minutes**; new stories appear within \~30 min |
 | AI provider | **Google Gemini only** (embeddings \+ text generation). No other paid AI. |
-| Perspectives | **Fully AI-generated** by Gemini from the Event's merged facts. Fact-locked: no facts, numbers or quotes beyond the sources. |
+| Perspectives | **Fully AI-generated** by Gemini from the Event's merged facts. Fact-locked: no facts, numbers or quotes beyond the sources. **Paused** behind `PERSPECTIVES_ENABLED` (default off). |
 | AI label | **Not shown at launch**, behind config flag `SHOW_AI_LABEL` (default `false`) |
 | Uncontested news | Neutral only, swipe disabled, no tabs or badge |
 | Storylines | Automatic: embeddings \+ a Gemini yes/no for borderline cases. No human curation. |
@@ -254,7 +255,7 @@ One **tick** every 15 minutes (cron `*/15 * * * *` via pg-boss, non-overlapping)
    6. Indian English, plain words, present tense for current events.  
    7. Copy every number exactly as the reports write it. Add no dates, years or totals the reports do not state.  
 
-   The prompt is now **v2** (`CARD_PROMPT_VERSION = 2`): v1 marked 22 of 30 cards contested, so v2 makes `contested = false` the default, lists the kinds of news that are never contested, and tells each perspective to use only the values that fit the story and to make no claims the reports do not make. Bump the version on every prompt change.  
+   The prompt is now **v2** (`CARD_PROMPT_VERSION = 2`): v1 marked 22 of 30 cards contested, so v2 makes `contested = false` the default, lists the kinds of news that are never contested, and tells each perspective to use only the values that fit the story and to make no claims the reports do not make. Bump the version on every prompt change. With `PERSPECTIVES_ENABLED` off, the prompt is the facts-only **v3** (`CARD_PROMPT_VERSION_FACTS`): rules 2–5 are left out and the JSON schema has only headline, category, neutral, entities and story_label, so step 9 skips the left/right checks and contested/left/right are stored as null. v2 (`CARD_PROMPT_VERSION_PERSPECTIVES`) is unchanged and returns when the switch is on.  
 9. **Validate in code.** Each text ≤ 60 words, headline ≤ 12 words. If `contested = false`, left and right must be null. Every number in `neutral` must appear in at least one source lede. On failure: retry once with a corrective instruction; if it fails again, mark the Event `failed` (it will show in admin). On success: set status `published`, `card_generated_at`, `gen_version`.  
 10. **Link to a Story** (newly published Events only, one at a time, so a later Event can join a Story created in the same tick). Candidates: `active` Stories with `last_event_at` in the last 30 days. Score \= max cosine between this Event's centroid and the centroids of that Story's **last 3 Events**. Shared entity \= case-insensitive overlap of `entities`. With `gemini-embedding-2` almost every Event pair scores above 0.70, so the brief's 0.80/0.70 were raised; the current values are starting points to tune with `pnpm label:pairs --events`:  
    - score ≥ `STORY_JOIN` (0.90) **and** ≥ 1 shared entity: join  
@@ -295,7 +296,7 @@ Public, read-only, cacheable:
 - `GET /v1/stories/:id/timeline`: the Story's published Events, oldest first (id, headline, first\_seen\_at).  
 - `GET /v1/stories/:id/summary?asOf=:eventId`: the summary row for that Event; 404 if none.  
 - `GET /v1/categories`  
-- `GET /v1/config`: `{ showAiLabel, minAppVersion }`
+- `GET /v1/config`: `{ showAiLabel, perspectives: true, minAppVersion }` with perspectives on; `{ minAppVersion }` with them off. Cards leave out `contested`/`left`/`right` entirely while perspectives are off, and the admin hides its perspective controls (`flip-contested` answers 404).
 
 Card payload:
 

@@ -56,7 +56,7 @@ export function ShareCard({ card, pane, text, onDone }: Props) {
   }, [pending, card.headline, text, onDone]);
 
   const showImage = card.imageUrl !== null && !imageFailed;
-  const showBadge = card.contested;
+  const showBadge = card.contested === true;
   const accent = palette[pane];
 
   return (

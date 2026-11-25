@@ -24,6 +24,7 @@ import {
   DAILY_BUDGET_HARD,
   DAILY_BUDGET_SOFT,
   FREE_TIER_DAILY_REQUESTS,
+  perspectivesEnabled,
   TIMEZONE,
 } from "@fr/shared";
 import { button, html, layout, time, type Html } from "./html.js";
@@ -67,6 +68,7 @@ function statusLabel(status: string) {
 
 export async function pageRoutes(app: FastifyInstance, { db }: AdminDeps) {
   app.get("/events", async (request, reply) => {
+    const perspectives = perspectivesEnabled();
     const query = listQuery.parse(request.query);
     const rows = await db
       .select({
@@ -104,7 +106,7 @@ export async function pageRoutes(app: FastifyInstance, { db }: AdminDeps) {
           (row) => html`<tr>
             <td>${time(row.firstSeenAt)}</td>
             <td>${statusLabel(row.status)}</td>
-            <td>${row.category ?? "—"}${row.contested ? " · contested" : ""}</td>
+            <td>${row.category ?? "—"}${perspectives && row.contested ? " · contested" : ""}</td>
             <td><a href="/admin/events/${row.id}">${row.headline ?? html`<span class="muted">(no card)</span>`}</a></td>
             <td>${row.articleCount}</td>
             <td>${row.storyId ? html`<a href="/admin/stories/${row.storyId}">${row.storyLabel ?? "story"}</a>` : "—"}</td>
@@ -116,6 +118,7 @@ export async function pageRoutes(app: FastifyInstance, { db }: AdminDeps) {
   });
 
   app.get("/events/:id", async (request, reply) => {
+    const perspectives = perspectivesEnabled();
     const { id } = idParams.parse(request.params);
     const { msg } = msgQuery.parse(request.query);
     const [event] = await db
@@ -145,7 +148,7 @@ export async function pageRoutes(app: FastifyInstance, { db }: AdminDeps) {
         ${e.status === "published" ? button(`${base}/hide`, "Hide") : ""}
         ${e.status === "hidden" && e.neutral ? button(`${base}/unhide`, "Unhide") : ""}
         ${["published", "failed", "hidden"].includes(e.status) ? button(`${base}/regen`, "Regenerate card") : ""}
-        ${["published", "hidden"].includes(e.status)
+        ${perspectives && ["published", "hidden"].includes(e.status)
           ? button(`${base}/flip-contested`, e.contested ? "Make facts-only" : "Make contested (regenerates)")
           : ""}
         ${e.status !== "merged"
@@ -175,12 +178,14 @@ export async function pageRoutes(app: FastifyInstance, { db }: AdminDeps) {
       ${actions}
       <div class="card">
         <h3>${e.headline ?? "(no card yet)"}</h3>
-        <p><b>Neutral:</b> ${e.neutral ?? "—"}</p>
-        ${e.contested
-          ? html`<p><b>Contested:</b> ${e.contestedReason ?? ""}</p>
-              <p><b>Left:</b> ${e.leftText ?? "—"}</p>
-              <p><b>Right:</b> ${e.rightText ?? "—"}</p>`
-          : html`<p class="muted">Facts only</p>`}
+        ${perspectives
+          ? html`<p><b>Neutral:</b> ${e.neutral ?? "—"}</p>
+              ${e.contested
+                ? html`<p><b>Contested:</b> ${e.contestedReason ?? ""}</p>
+                    <p><b>Left:</b> ${e.leftText ?? "—"}</p>
+                    <p><b>Right:</b> ${e.rightText ?? "—"}</p>`
+                : html`<p class="muted">Facts only</p>`}`
+          : html`<p>${e.neutral ?? "—"}</p>`}
         <p class="muted">Entities: ${e.entities.join(", ") || "—"} · label: ${e.storyLabel ?? "—"} · card written ${time(e.cardGeneratedAt)}</p>
       </div>
       <h2>Member articles</h2>

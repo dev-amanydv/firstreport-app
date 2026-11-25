@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { articles, eq, events, sql, storySummaries, type Database } from "@fr/db";
 import { openTestDb } from "@fr/db/testing";
 import { cardPayloadSchema, FEED_BOOST_MINUTES, FEED_PROGRESS_WINDOW_HOURS, feedSchema, PUBLIC_CACHE_SECONDS } from "@fr/shared";
@@ -24,6 +24,14 @@ beforeEach(async () => {
 afterAll(async () => {
   await app.close();
   await database.close();
+});
+
+// These tests cover perspectives enabled; "with perspectives disabled" blocks switch them off.
+beforeEach(() => {
+  vi.stubEnv("PERSPECTIVES_ENABLED", "true");
+});
+afterEach(() => {
+  vi.unstubAllEnvs();
 });
 
 async function get(url: string) {
@@ -169,6 +177,28 @@ describe("static endpoints", () => {
   it("serves categories and app config", async () => {
     const categories = (await get("/v1/categories")).json();
     expect(categories.items).toHaveLength(6);
-    expect((await get("/v1/config")).json()).toEqual({ showAiLabel: false, minAppVersion: "1.0.0" });
+    expect((await get("/v1/config")).json()).toEqual({ showAiLabel: false, perspectives: true, minAppVersion: "1.0.0" });
+  });
+});
+
+describe("with perspectives disabled", () => {
+  beforeEach(() => {
+    vi.stubEnv("PERSPECTIVES_ENABLED", "false");
+  });
+
+  it("sends no perspective keys, even for a card stored with them", async () => {
+    const event = await addEvent(db, { contested: true, contestedReason: "why", leftText: "L", rightText: "R" });
+
+    const card = (await get(`/v1/events/${event.id}`)).json();
+    expect(card).not.toHaveProperty("contested");
+    expect(card).not.toHaveProperty("left");
+    expect(card).not.toHaveProperty("right");
+    expect(cardPayloadSchema.parse(card)).toMatchObject({ id: event.id });
+
+    const [item] = (await get("/v1/feed")).json().items;
+    expect(item).toMatchObject({ id: event.id });
+    for (const key of ["contested", "left", "right"]) expect(item).not.toHaveProperty(key);
+
+    expect((await get("/v1/config")).json()).toEqual({ minAppVersion: "1.0.0" });
   });
 });

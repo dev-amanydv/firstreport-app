@@ -45,12 +45,16 @@ export const Card = memo(function Card({ card, palette, width, height, progress,
     setSheet(null);
   }, [active]);
 
+  // The server leaves out `contested` while perspectives are paused: every card is then plain text,
+  // with no tabs, labels, swipe or hint.
+  const contested = card.contested === true;
+
   useEffect(() => {
-    if (active && card.contested && !hint && shouldHint()) {
+    if (active && contested && !hint && shouldHint()) {
       markHintShown();
       setHint(true);
     }
-  }, [active, card.contested, hint]);
+  }, [active, contested, hint]);
 
   const toggleActions = () => setActionsVisible((visible) => !visible);
   const tap = useTapGesture({ maxDistance: TAP_SLOP.maxDistance, maxDuration: TAP_SLOP.maxDuration, runOnJS: true, onActivate: toggleActions });
@@ -102,7 +106,7 @@ export const Card = memo(function Card({ card, palette, width, height, progress,
         <Perspective
           palette={palette}
           width={width - CONTENT_PADDING * 2}
-          contested={card.contested}
+          contested={contested}
           texts={texts}
           showAiLabel={showAiLabel}
           hint={hint}

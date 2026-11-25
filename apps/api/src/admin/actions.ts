@@ -16,7 +16,7 @@ import {
   storySummaries,
   type Tx,
 } from "@fr/db";
-import { REGEN_QUEUE } from "@fr/shared";
+import { perspectivesEnabled, REGEN_QUEUE } from "@fr/shared";
 import type { AdminDeps } from "./routes.js";
 
 type Action = (typeof adminActions.$inferInsert)["action"];
@@ -83,7 +83,9 @@ export async function actionRoutes(app: FastifyInstance, { db, queue }: AdminDep
   });
 
   // To facts-only: drop the perspectives now. To contested: the worker rewrites the card with both perspectives.
+  // A 404 while perspectives are disabled, as if the route did not exist.
   app.post("/events/:id/flip-contested", async (request, reply) => {
+    if (!perspectivesEnabled()) return reply.callNotFound();
     const { id } = idParams.parse(request.params);
     const [event] = await db.select({ status: events.status, contested: events.contested }).from(events).where(eq(events.id, id));
     if (!event || !["published", "hidden"].includes(event.status)) {
