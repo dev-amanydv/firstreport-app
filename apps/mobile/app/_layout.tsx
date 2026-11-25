@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { AppState } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -11,14 +11,15 @@ import * as SystemUI from "expo-system-ui";
 import { loadSession } from "../src/auth/session";
 import { loadCardsSeen } from "../src/authPrompt";
 import { loadHintCount } from "../src/hints";
-import { fonts } from "../src/theme/tokens";
-import { usePalette } from "../src/theme/useTheme";
+import { dark, fonts } from "../src/theme/tokens";
+import { loadAppearance, usePalette } from "../src/theme/useTheme";
 
 void SplashScreen.preventAutoHideAsync();
 // Read while the fonts load, so the first card already knows whether to hint.
 void loadHintCount();
 void loadCardsSeen();
 void loadSession();
+const appearanceReady = loadAppearance();
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: 60_000, retry: 2 } },
@@ -29,6 +30,7 @@ AppState.addEventListener("change", (state) => focusManager.setFocused(state ===
 
 export default function RootLayout() {
   const palette = usePalette();
+  const [themed, setThemed] = useState(false);
   const [loaded, error] = useFonts({
     // Newsreader at opsz 26, weight 600: the optical size the artboard's 26px headline renders at.
     [fonts.headline]: require("../assets/fonts/Newsreader-Headline-600.ttf"),
@@ -42,16 +44,22 @@ export default function RootLayout() {
   }, [palette.canvas]);
 
   useEffect(() => {
-    if (loaded || error) void SplashScreen.hideAsync();
-  }, [loaded, error]);
+    void appearanceReady.then(() => setThemed(true));
+  }, []);
 
-  if (!loaded && !error) return null;
+  const ready = (loaded || error) && themed;
+  useEffect(() => {
+    if (ready) void SplashScreen.hideAsync();
+  }, [ready]);
+
+  if (!ready) return null;
 
   return (
     <GestureHandlerRootView style={{ flex: 1, backgroundColor: palette.canvas }}>
       <SafeAreaProvider>
         <QueryClientProvider client={queryClient}>
-          <StatusBar style="auto" />
+          {/* Follows the app's theme choice, which may differ from the phone's. */}
+          <StatusBar style={palette === dark ? "light" : "dark"} />
           <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: palette.canvas } }}>
             <Stack.Screen name="event/[id]" options={{ presentation: "modal", animation: "slide_from_bottom" }} />
           </Stack>

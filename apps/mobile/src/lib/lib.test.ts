@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { dark, light } from "../theme/tokens";
+import { parseAppearance } from "./appearance";
 import { NO_CARDS_SEEN, parseSeen, recordSeen, shouldPrompt } from "./authPrompt";
 import { contrast } from "./contrast";
 import { IMAGE_MAX, IMAGE_MIN, imageHeight, isRendered, progress } from "./layout";
@@ -139,5 +140,15 @@ describe("parseSeen", () => {
     expect(parseSeen(null)).toEqual(NO_CARDS_SEEN);
     expect(parseSeen("{oops")).toEqual(NO_CARDS_SEEN);
     expect(parseSeen(JSON.stringify({ count: -1, recent: [] }))).toEqual(NO_CARDS_SEEN);
+  });
+});
+
+describe("parseAppearance", () => {
+  it("keeps a valid choice and falls back to system", () => {
+    expect(parseAppearance("dark")).toBe("dark");
+    expect(parseAppearance("light")).toBe("light");
+    expect(parseAppearance("system")).toBe("system");
+    expect(parseAppearance(null)).toBe("system");
+    expect(parseAppearance("purple")).toBe("system");
   });
 });
