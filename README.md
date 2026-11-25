@@ -13,7 +13,7 @@ The full product and engineering brief is in [`CLAUDE.md`](CLAUDE.md).
 | M3 Cards                                         | ✅ prompt v2 (perspectives); v3 facts-only while they are paused                       |
 | M4 Stories, summaries, nightly job, budget brake | ✅ (R2 backup and alert webhook moved to M7)                                         |
 | M5 API + admin                                   | ✅ built; gate pending (7 days unattended under $1.50/day)                           |
-| M6 Mobile app                                    | in progress: home screen, History, Story so far, optional Google sign-in (M6b) built; dark-mode toggle next |
+| M6 Mobile app                                    | in progress: home screen, History, Story so far, optional Google sign-in (M6b), Account page and Appearance built |
 | M7 Hardening, M8 Closed beta                     | not started                                                                          |
 
 ## Repo layout
@@ -324,7 +324,7 @@ The admin at `/admin` uses HTTP basic auth (`ADMIN_USER`/`ADMIN_PASSWORD`; it is
 
 ## Sign-in (optional)
 
-Reading never needs an account. Signed-out readers see a sign-in sheet after their 3rd, 5th and 7th card, then every 7th (`AUTH_PROMPT_AT`, `AUTH_PROMPT_EVERY` in `config.ts`). Each card counts once, across app opens, and the sheet only opens once the reader rests on a card and no other sheet is open. The Account tab always offers sign-in, and once signed in shows the profile, Sign out and Delete account.
+Reading never needs an account. Signed-out readers see a centred sign-in popup after their 3rd, 5th and 7th card, then every 7th (`AUTH_PROMPT_AT`, `AUTH_PROMPT_EVERY` in `config.ts`). Each card counts once, across app opens, and the popup only opens once the reader rests on a card and no other sheet is open. The Account tab always offers Log in and Sign up (both run Google sign-in), and once signed in shows the profile, Sign out and Delete account.
 
 Only Google is offered, through `@react-native-google-signin/google-signin` (wrapped in `apps/mobile/src/auth/google.ts`). The phone gets a Google ID token, `POST /v1/auth/google` checks it with `google-auth-library` and returns an opaque session token (only its sha256 is stored, in `sessions`). The app keeps the token in `expo-secure-store`.
 
@@ -334,7 +334,7 @@ To turn it on:
 2. Put the Web client ID in `GOOGLE_WEB_CLIENT_ID` (root `.env`) and `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` (`apps/mobile/.env`). For iOS, replace `REPLACE_ME` in the `iosUrlScheme` in `apps/mobile/app.json` with the iOS client's reversed ID.
 3. Rebuild the development build (step 7b) and restart Metro with `--clear`.
 
-The terms and privacy links in the sheet's fine print are plain text until `LEGAL` in `apps/mobile/src/auth/copy.ts` gets URLs (M7). The sheet's words are in `COPY` in the same file.
+The terms and privacy links in the popup's fine print (and the Privacy policy and Terms rows on the Account page, which read "Soon" until then) are plain text until `LEGAL` in `apps/mobile/src/auth/copy.ts` gets URLs (M7). The popup's and Account page's words are in `COPY` in the same file.
 
 ## Mobile app
 
