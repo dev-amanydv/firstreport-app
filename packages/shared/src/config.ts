@@ -143,3 +143,10 @@ export const CATEGORY_SHORT_LABELS = {
 
 export const ADMIN_PAGE_SIZE = 50;
 export const COST_PAGE_DAYS = 30;
+
+// Sign-in box for readers who are not signed in: after these many cards seen (counted once each,
+// across app opens), then on every AUTH_PROMPT_EVERY-th card after the last of them.
+export const AUTH_PROMPT_AT = [3, 5, 7];
+export const AUTH_PROMPT_EVERY = 7;
+// Bytes of randomness in a session token.
+export const SESSION_TOKEN_BYTES = 32;

@@ -174,3 +174,29 @@ export const adminActions = pgTable("admin_actions", {
   note: text("note"),
   createdAt: createdAt(),
 });
+
+// Optional sign-in (Google only). Reading never needs an account.
+export const users = pgTable("users", {
+  id: id(),
+  googleSub: text("google_sub").notNull().unique(),
+  email: text("email").notNull(),
+  name: text("name"),
+  pictureUrl: text("picture_url"),
+  createdAt: createdAt(),
+  lastLoginAt: tz("last_login_at").notNull().defaultNow(),
+});
+
+// Opaque bearer tokens; only their sha256 is stored. Deleting a user deletes its sessions.
+export const sessions = pgTable(
+  "sessions",
+  {
+    id: id(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    tokenHash: text("token_hash").notNull().unique(),
+    createdAt: createdAt(),
+    lastUsedAt: tz("last_used_at").notNull().defaultNow(),
+  },
+  (t) => [index("sessions_user_id_idx").on(t.userId)],
+);
