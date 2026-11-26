@@ -1,5 +1,5 @@
-import { articles, count, eq, gte, sources, startOfToday, type Database, type Db } from "@fr/db";
-import { MAX_NEW_ARTICLES_PER_DAY, TICK_LOCK_ID } from "@fr/shared";
+import { and, articles, count, eq, gte, ne, sources, startOfToday, type Database, type Db } from "@fr/db";
+import { geminiFreeTier, MAX_NEW_ARTICLES_PER_DAY, MAX_NEW_ARTICLES_PER_HOUR, TICK_LOCK_ID } from "@fr/shared";
 import { dailyRequestCapsFromEnv, type Gemini } from "./gemini/client.js";
 import { ingestSource } from "./ingest/ingestSource.js";
 import { assignArticles } from "./pipeline/assignEvents.js";
@@ -11,11 +11,30 @@ import { checkMaterialChanges } from "./pipeline/materialChanges.js";
 import { updateSummaries } from "./pipeline/updateSummaries.js";
 import { writeCards } from "./pipeline/writeCards.js";
 
-type TickOptions = { dryRun: boolean; gemini: Gemini | null; maxNewArticlesPerDay?: number };
+export type ArticleCaps = { perDay: number; perHour: number };
+type TickOptions = { dryRun: boolean; gemini: Gemini | null; articleCaps?: ArticleCaps | null };
 
-async function ingestAll(db: Db, dryRun: boolean, maxNewArticlesPerDay: number) {
-  const [today] = await db.select({ inserted: count() }).from(articles).where(gte(articles.fetchedAt, startOfToday()));
-  const allowance = { remaining: maxNewArticlesPerDay - (today?.inserted ?? 0) };
+// The free tier caps new articles per day, paced per hour so evening news still gets in. Production has no cap:
+// the budget brake guards cost. Articles the triage skipped do not count.
+function defaultArticleCaps(): ArticleCaps | null {
+  return geminiFreeTier() ? { perDay: MAX_NEW_ARTICLES_PER_DAY, perHour: MAX_NEW_ARTICLES_PER_HOUR } : null;
+}
+
+async function insertedSince(db: Db, since: Date | ReturnType<typeof startOfToday>) {
+  const [row] = await db
+    .select({ inserted: count() })
+    .from(articles)
+    .where(and(gte(articles.fetchedAt, since), ne(articles.status, "skipped")));
+  return row?.inserted ?? 0;
+}
+
+async function ingestAll(db: Db, dryRun: boolean, caps: ArticleCaps | null) {
+  let remaining = Number.POSITIVE_INFINITY;
+  if (caps) {
+    const lastHour = new Date(Date.now() - 3600_000);
+    remaining = Math.min(caps.perDay - (await insertedSince(db, startOfToday())), caps.perHour - (await insertedSince(db, lastHour)));
+  }
+  const allowance = { remaining };
 
   const activeSources = await db.select().from(sources).where(eq(sources.active, true));
   const results = await Promise.all(
@@ -40,9 +59,9 @@ async function runStep<T>(name: string, step: () => Promise<T>) {
   }
 }
 
-async function runSteps(db: Db, { dryRun, gemini, maxNewArticlesPerDay = MAX_NEW_ARTICLES_PER_DAY }: TickOptions) {
+async function runSteps(db: Db, { dryRun, gemini, articleCaps = defaultArticleCaps() }: TickOptions) {
   const startedAt = new Date();
-  const ingest = await ingestAll(db, dryRun, maxNewArticlesPerDay);
+  const ingest = await ingestAll(db, dryRun, articleCaps);
   let triage = null;
   let embed = null;
   let assign = null;

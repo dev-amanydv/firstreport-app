@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { articles, eq, sources, sql, type Database } from "@fr/db";
-import { runTick } from "../src/tick.js";
+import { runTick, type ArticleCaps } from "../src/tick.js";
 import { openTestDb } from "@fr/db/testing";
 
 const fixture = (name: string) => readFileSync(new URL(`fixtures/${name}`, import.meta.url), "utf8");
@@ -33,8 +33,8 @@ function fakeFetch(input: string | URL | Request, init?: RequestInit) {
 let database: Database;
 let db: Database["db"];
 
-async function tick(maxNewArticlesPerDay?: number) {
-  const result = await runTick(database, { dryRun: false, gemini: null, maxNewArticlesPerDay });
+async function tick(articleCaps: ArticleCaps | null = null) {
+  const result = await runTick(database, { dryRun: false, gemini: null, articleCaps });
   return result!.ingest[0]!;
 }
 
@@ -108,14 +108,28 @@ describe("ingest replay", () => {
     expect(new Headers(lastCall[1]?.headers).get("If-None-Match")).toBe('"v2"');
   });
 
-  it("stops inserting new articles at the daily cap", async () => {
+  it.each([
+    ["daily", { perDay: 1, perHour: 100 }],
+    ["hourly", { perDay: 100, perHour: 1 }],
+  ])("stops inserting new articles at the %s cap", async (_name, caps) => {
     await db.execute(sql`truncate articles`);
     await db.execute(sql`update sources set feed_state = '{}'`);
     server.feed = "feed.xml";
 
-    const counts = await tick(1);
+    const counts = await tick(caps);
 
     expect(counts).toMatchObject({ inserted: 1, capped: 1, pageFetches: 0 });
     expect(await db.select().from(articles)).toHaveLength(1);
+  });
+
+  it("does not count articles the triage skipped", async () => {
+    await db.execute(sql`truncate articles`);
+    await db.execute(sql`update sources set feed_state = '{}'`);
+    server.feed = "feed.xml";
+    await tick({ perDay: 1, perHour: 1 });
+    await db.update(articles).set({ status: "skipped" });
+    await db.execute(sql`update sources set feed_state = '{}'`);
+
+    expect(await tick({ perDay: 1, perHour: 1 })).toMatchObject({ inserted: 1, capped: 0 });
   });
 });

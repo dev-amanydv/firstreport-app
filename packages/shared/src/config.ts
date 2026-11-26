@@ -104,7 +104,9 @@ export const LABEL_BAND_WIDTH = 0.05;
 export const LABEL_TARGET_PRECISION = 0.95;
 export const LABEL_TARGET_RECALL = 0.95;
 
+// Free tier only (production has no article cap). The hourly cap spreads the daily one across the day.
 export const MAX_NEW_ARTICLES_PER_DAY = 250;
+export const MAX_NEW_ARTICLES_PER_HOUR = 20;
 
 // Step 1b: one Flash-Lite call sorts up to TRIAGE_BATCH new headlines into hard news (kept) and soft news (skipped).
 // On the free tier it waits for TRIAGE_MIN_BATCH headlines or for the oldest to wait TRIAGE_FLUSH_MINUTES, to save
