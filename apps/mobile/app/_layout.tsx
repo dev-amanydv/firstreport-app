@@ -11,6 +11,7 @@ import * as SystemUI from "expo-system-ui";
 import { loadSession } from "../src/auth/session";
 import { loadCardsSeen } from "../src/authPrompt";
 import { loadHintCount } from "../src/hints";
+import { ToastHost } from "../src/components/ToastHost";
 import { loadSaved } from "../src/saved";
 import { dark, fonts } from "../src/theme/tokens";
 import { loadAppearance, usePalette } from "../src/theme/useTheme";
@@ -65,6 +66,7 @@ export default function RootLayout() {
           <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: palette.canvas } }}>
             <Stack.Screen name="event/[id]" options={{ presentation: "modal", animation: "slide_from_bottom" }} />
           </Stack>
+          <ToastHost />
         </QueryClientProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>

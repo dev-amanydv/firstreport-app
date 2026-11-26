@@ -61,6 +61,7 @@ export const Card = memo(function Card({ card, palette, width, height, progress,
   const tapConfig = { maxDistance: TAP_SLOP.maxDistance, maxDuration: TAP_SLOP.maxDuration, runOnJS: true, onActivate: toggleActions };
   const tap = useTapGesture(tapConfig);
   const bylineTap = useTapGesture(tapConfig);
+  const footerTap = useTapGesture(tapConfig);
 
   const texts = { neutral: card.neutral, left: card.left ?? card.neutral, right: card.right ?? card.neutral };
   const source = card.sources[0];
@@ -106,7 +107,6 @@ export const Card = memo(function Card({ card, palette, width, height, progress,
         <GestureDetector gesture={bylineTap}>
           <View style={styles.bylineText} collapsable={false}>
             <Text style={[styles.date, { color: palette.muted }]}>{relativeTime(card.firstSeenAt)}</Text>
-            <SourceLogos palette={palette} sources={card.sources} />
           </View>
         </GestureDetector>
         <SaveButton palette={palette} card={card} />
@@ -124,6 +124,13 @@ export const Card = memo(function Card({ card, palette, width, height, progress,
           onTap={toggleActions}
         />
       </View>
+
+      {/* The outlets close the card, bottom right; the action bar covers them while it is open. */}
+      <GestureDetector gesture={footerTap}>
+        <View style={styles.footer} collapsable={false}>
+          <SourceLogos palette={palette} sources={card.sources} />
+        </View>
+      </GestureDetector>
 
       <ActionBar
         palette={palette}
@@ -178,7 +185,8 @@ const styles = StyleSheet.create({
   },
   // The headline's tap area ends at its last line; the byline's own starts right below it.
   byline: { paddingTop: 8, paddingHorizontal: CONTENT_PADDING, flexDirection: "row", alignItems: "center", gap: 14 },
-  bylineText: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
+  bylineText: { flex: 1, flexDirection: "row", alignItems: "center" },
   date: { fontFamily: fonts.medium, fontSize: 12, lineHeight: 16, includeFontPadding: false },
   body: { flex: 1, paddingHorizontal: CONTENT_PADDING },
+  footer: { flexDirection: "row", justifyContent: "flex-end", paddingHorizontal: CONTENT_PADDING, paddingTop: 8, paddingBottom: 16 },
 });

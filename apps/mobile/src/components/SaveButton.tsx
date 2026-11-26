@@ -1,16 +1,18 @@
 import { Pressable, StyleSheet } from "react-native";
+import { router } from "expo-router";
 import Animated, { useAnimatedStyle, useSharedValue, withSequence, withSpring, withTiming } from "react-native-reanimated";
 import * as Haptics from "expo-haptics";
 import type { CardPayload } from "@fr/shared";
 import { toggleSaved, useIsSaved } from "../saved";
+import { showToast } from "../toast";
 import type { Palette } from "../theme/tokens";
 import { BookmarkIcon } from "./icons";
 
-const ICON = 20;
-// A 44 pt target around the 20 pt icon, without making the byline row taller.
+const ICON = 26;
+// A 44 pt target around the icon, without making the byline row taller.
 const SLOP = (44 - ICON) / 2;
 
-// The card's bookmark, at the end of the byline: always visible, no need to open the action bar first.
+// The card's bookmark, at the right end of the byline: always visible, no need to open the action bar first.
 export function SaveButton({ palette, card }: { palette: Palette; card: CardPayload }) {
   const saved = useIsSaved(card.id);
   const scale = useSharedValue(1);
@@ -21,8 +23,10 @@ export function SaveButton({ palette, card }: { palette: Palette; card: CardPayl
     if (nowSaved) {
       scale.value = withSequence(withTiming(1.25, { duration: 90 }), withSpring(1, { damping: 9, stiffness: 260 }));
       void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      showToast({ message: "Saved to your stories", icon: "saved", action: { label: "View", onPress: () => router.push("/saved") } });
     } else {
       void Haptics.selectionAsync();
+      showToast({ message: "Removed from saved", icon: "removed", action: { label: "Undo", onPress: () => void toggleSaved(card) } });
     }
   };
 
