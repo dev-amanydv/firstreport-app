@@ -18,8 +18,50 @@ export const MAX_LEDE_CHARS = 1_500;
 export const MAX_BODY_CHARS = 20_000;
 export const MAX_PAGE_BYTES = 2_000_000;
 
-export const FILTERED_URL_PATTERNS = ["/live/", "live-updates", "/opinion/", "/editorial/", "/blogs/"];
-export const FILTERED_TITLE_PATTERNS = [/^top \d+\b/i, /morning brief/i, /horoscope/i, /^gold rate today/i, /^daily quiz/i];
+// Free first pass at hard news only: sections that are never breaking news. The Gemini triage (step 1b) does the rest.
+export const FILTERED_URL_PATTERNS = [
+  "/live/",
+  "live-updates",
+  "/opinion/",
+  "/editorial/",
+  "/blogs/",
+  "/reviews/",
+  "/life-style/",
+  "/lifestyle/",
+  "/web-stories/",
+  "/webstories/",
+  "/photos/",
+  "/photogallery/",
+  "/video/",
+  "/videos/",
+  "/astrology/",
+  "/recipes/",
+  "/how-to/",
+  "/brand-post/",
+  "/brandpost/",
+  "/sponsored/",
+  "/trending/",
+  "/trends/",
+  "/mobiles/",
+  "/gadgets/",
+  "/audio/",
+  "/laptops/",
+  "/smart-home/",
+  "/home-appliances/",
+];
+export const FILTERED_TITLE_PATTERNS = [
+  /^top \d+\b/i,
+  /morning brief/i,
+  /horoscope/i,
+  /^gold rate today/i,
+  /^daily quiz/i,
+  /\breview:/i,
+  /\bprice in india\b/i,
+  /^best .+ under\b/i,
+  /^how to\b/i,
+  /\bin pics\b/i,
+  /\blucky (number|colou?r)/i,
+];
 
 export const TRACKING_PARAMS = ["fbclid", "gclid", "ref"];
 export const TRACKING_PARAM_PREFIXES = ["utm_"];

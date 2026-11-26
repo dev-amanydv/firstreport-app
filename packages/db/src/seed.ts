@@ -1,4 +1,4 @@
-import { sql } from "drizzle-orm";
+import { inArray, sql } from "drizzle-orm";
 import { createDb } from "./client.js";
 import { databaseUrl } from "./env.js";
 import { sources } from "./schema.js";
@@ -46,7 +46,7 @@ const activeSources: SeedSource[] = [
   {
     name: "Mint",
     domain: "livemint.com",
-    rssUrls: ["https://www.livemint.com/rss/news", "https://www.livemint.com/rss/technology"],
+    rssUrls: ["https://www.livemint.com/rss/news"],
   },
   {
     name: "Economic Times",
@@ -64,7 +64,6 @@ const activeSources: SeedSource[] = [
     rssUrls: [],
     extraRssUrls: ["https://www.thehindubusinessline.com/feeder/default.rss"],
   },
-  { name: "Gadgets 360", domain: "gadgets360.com", rssUrls: ["https://feeds.feedburner.com/gadgets360-latest"] },
   { name: "The Quint", domain: "thequint.com", rssUrls: ["https://www.thequint.com/stories.rss"] },
 ].map((s) => ({ ...s, active: true }));
 
@@ -84,6 +83,9 @@ const todoSources: SeedSource[] = [
   { name: "Financial Express", domain: "financialexpress.com" },
 ].map((s) => ({ ...s, rssUrls: ["TODO"], active: false }));
 
+// Outlets dropped for being mostly soft news (gadget launches and reviews). The seed switches them off.
+const retiredSources = ["Gadgets 360"];
+
 const allFeeds = process.argv.includes("--all-feeds");
 const { db, close } = createDb(databaseUrl());
 
@@ -97,6 +99,7 @@ for (const { extraRssUrls = [], ...source } of [...activeSources, ...todoSources
       set: { domain: sql`excluded.domain`, rssUrls: sql`excluded.rss_urls` },
     });
 }
+await db.update(sources).set({ active: false }).where(inArray(sources.name, retiredSources));
 
 await close();
 console.log(`seeded ${activeSources.length} active and ${todoSources.length} todo sources${allFeeds ? " with all feeds" : ""}`);
