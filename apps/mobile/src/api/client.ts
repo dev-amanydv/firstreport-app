@@ -1,5 +1,5 @@
-import { appConfigSchema, cardPayloadSchema, feedSchema, summarySchema, timelineSchema, type Category } from "@fr/shared";
-import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
+import { appConfigSchema, cardPayloadSchema, exploreSchema, feedSchema, SEARCH_QUERY_MIN, searchResultSchema, summarySchema, timelineSchema, type Category } from "@fr/shared";
+import { keepPreviousData, useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import type { z } from "zod";
 
 const BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL ?? "http://localhost:3000";
@@ -92,4 +92,19 @@ export function useSummary(storyId: string, asOf: string, enabled: boolean) {
 // null when the Event is gone (hidden or never published). A merged Event redirects to its survivor.
 export function useEvent(id: string) {
   return useQuery({ queryKey: ["event", id], queryFn: () => getOrNull(`/v1/events/${id}`, cardPayloadSchema) });
+}
+
+export function useExplore() {
+  return useQuery({ queryKey: ["explore"], queryFn: () => get("/v1/explore", exploreSchema) });
+}
+
+// q is already debounced by the caller. The previous results stay on screen while the next ones load.
+export function useSearch(q: string) {
+  const query = q.trim();
+  return useQuery({
+    queryKey: ["search", query.toLowerCase()],
+    queryFn: () => get(`/v1/search?${new URLSearchParams({ q: query })}`, searchResultSchema),
+    enabled: query.length >= SEARCH_QUERY_MIN,
+    placeholderData: keepPreviousData,
+  });
 }

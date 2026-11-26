@@ -68,3 +68,31 @@ export type User = z.infer<typeof userSchema>;
 
 export const signInResponseSchema = z.object({ token: z.string(), user: userSchema });
 export type SignInResponse = z.infer<typeof signInResponseSchema>;
+
+// Explore tab. One cacheable payload with three sections.
+const exploreEventSchema = z.object({
+  id: z.uuid(),
+  headline: z.string(),
+  imageUrl: z.string().nullable(),
+  firstSeenAt: z.iso.datetime({ offset: true }),
+  category: categorySchema,
+});
+
+export const exploreSchema = z.object({
+  developing: z.array(
+    z.object({
+      storyId: z.uuid(),
+      label: z.string(),
+      eventCount: z.number().int(),
+      lastEventAt: z.iso.datetime({ offset: true }),
+      // The Story's newest published Event: its headline for the card, its id for the summary's asOf.
+      latestEvent: z.object({ id: z.uuid(), headline: z.string(), imageUrl: z.string().nullable() }),
+    }),
+  ),
+  mostCovered: z.array(exploreEventSchema.extend({ sourceCount: z.number().int() })),
+  topics: z.array(z.object({ name: z.string(), count: z.number().int() })),
+});
+export type Explore = z.infer<typeof exploreSchema>;
+
+export const searchResultSchema = z.object({ items: z.array(exploreEventSchema) });
+export type SearchResult = z.infer<typeof searchResultSchema>;

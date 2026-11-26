@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import {
   boolean,
+  customType,
   index,
   integer,
   jsonb,
@@ -21,6 +22,7 @@ export type FeedState = Record<string, { etag: string | null; lastModified: stri
 const id = () => uuid("id").primaryKey().defaultRandom();
 const createdAt = () => timestamp("created_at", { withTimezone: true }).notNull().defaultNow();
 const tz = (name: string) => timestamp(name, { withTimezone: true });
+const tsvector = customType<{ data: string }>({ dataType: () => "tsvector" });
 
 export const articleStatus = pgEnum("article_status", ["new", "assigned", "skipped"]);
 export const eventStatus = pgEnum("event_status", ["collecting", "published", "hidden", "failed", "merged"]);
@@ -101,9 +103,12 @@ export const events = pgTable(
     genVersion: integer("gen_version"),
     mergedIntoId: uuid("merged_into_id").references((): AnyPgColumn => events.id),
     cardGeneratedAt: tz("card_generated_at"),
+    // Explore search; events_search_doc() is defined in migration 0004.
+    searchDoc: tsvector("search_doc").generatedAlwaysAs(sql`events_search_doc(headline, neutral, entities)`),
   },
   (t) => [
     index("events_status_first_seen_idx").on(t.status, t.firstSeenAt.desc()),
+    index("events_search_doc_idx").using("gin", t.searchDoc),
     index("events_category_first_seen_idx").on(t.category, t.firstSeenAt.desc()),
     index("events_story_first_seen_idx").on(t.storyId, t.firstSeenAt),
     index("events_last_article_idx").on(t.lastArticleAt),

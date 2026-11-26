@@ -1,8 +1,21 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import type { Db } from "@fr/db";
-import { CATEGORY_LABELS, categorySchema, FEED_PAGE_DEFAULT, FEED_PAGE_MAX, MIN_APP_VERSION, perspectivesEnabled, PUBLIC_CACHE_SECONDS, SHOW_AI_LABEL } from "@fr/shared";
-import { decodeCursor, eventCard, feed, summary, timeline } from "./queries.js";
+import {
+  CATEGORY_LABELS,
+  categorySchema,
+  FEED_PAGE_DEFAULT,
+  FEED_PAGE_MAX,
+  MIN_APP_VERSION,
+  perspectivesEnabled,
+  PUBLIC_CACHE_SECONDS,
+  SEARCH_LIMIT_DEFAULT,
+  SEARCH_LIMIT_MAX,
+  SEARCH_QUERY_MAX,
+  SEARCH_QUERY_MIN,
+  SHOW_AI_LABEL,
+} from "@fr/shared";
+import { decodeCursor, eventCard, explore, feed, search, summary, timeline } from "./queries.js";
 
 const feedQuery = z.object({
   category: categorySchema.optional(),
@@ -11,6 +24,10 @@ const feedQuery = z.object({
 });
 const idParams = z.object({ id: z.uuid() });
 const summaryQuery = z.object({ asOf: z.uuid() });
+const searchQuery = z.object({
+  q: z.string().trim().min(SEARCH_QUERY_MIN).max(SEARCH_QUERY_MAX),
+  limit: z.coerce.number().int().min(1).max(SEARCH_LIMIT_MAX).default(SEARCH_LIMIT_DEFAULT),
+});
 
 // Read-only and cacheable, so Cloudflare can absorb traffic.
 export async function publicRoutes(app: FastifyInstance, { db }: { db: Db }) {
@@ -42,6 +59,13 @@ export async function publicRoutes(app: FastifyInstance, { db }: { db: Db }) {
     const { id } = idParams.parse(request.params);
     const { asOf } = summaryQuery.parse(request.query);
     return (await summary(db, id, asOf)) ?? reply.code(404).send({ error: "not found" });
+  });
+
+  app.get("/explore", async () => explore(db));
+
+  app.get("/search", async (request) => {
+    const { q, limit } = searchQuery.parse(request.query);
+    return search(db, q, limit);
   });
 
   app.get("/categories", async () => ({

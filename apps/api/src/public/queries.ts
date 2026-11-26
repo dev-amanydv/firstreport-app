@@ -1,5 +1,24 @@
 import { and, articles, asc, desc, eq, events, sql, sources, stories, storySummaries, type Db } from "@fr/db";
-import { CARD_MAX_SOURCES, FEED_BOOST_MAX_ARTICLES, FEED_BOOST_MINUTES, FEED_PROGRESS_WINDOW_HOURS, perspectivesEnabled, type CardPayload, type Category } from "@fr/shared";
+import {
+  CARD_MAX_SOURCES,
+  EXPLORE_DEVELOPING_LIMIT,
+  EXPLORE_DEVELOPING_MIN_EVENTS,
+  EXPLORE_DEVELOPING_WINDOW_HOURS,
+  EXPLORE_MOST_COVERED_LIMIT,
+  EXPLORE_MOST_COVERED_MIN_SOURCES,
+  EXPLORE_TOPICS_LIMIT,
+  EXPLORE_TOPICS_MIN_EVENTS,
+  EXPLORE_WINDOW_HOURS,
+  FEED_BOOST_MAX_ARTICLES,
+  FEED_BOOST_MINUTES,
+  FEED_PROGRESS_WINDOW_HOURS,
+  perspectivesEnabled,
+  SEARCH_WINDOW_DAYS,
+  type CardPayload,
+  type Category,
+  type Explore,
+  type SearchResult,
+} from "@fr/shared";
 
 // Newest first, with a small boost for Events that many outlets cover.
 const sortKey = sql`(${events.firstSeenAt} + least(${events.articleCount}, ${FEED_BOOST_MAX_ARTICLES}::int) * (${FEED_BOOST_MINUTES}::int * interval '1 minute'))`;
@@ -181,4 +200,97 @@ export async function summary(db: Db, storyId: string, asOfEventId: string) {
     .where(and(eq(storySummaries.storyId, storyId), eq(storySummaries.asOfEventId, asOfEventId)));
   if (!row) return null;
   return { storyId: row.storyId, asOfEventId: row.asOfEventId, summary: row.summary, createdAt: row.createdAt.toISOString() };
+}
+
+// Timestamps come back from raw queries as epoch milliseconds, so no driver-specific parsing is needed.
+const iso = (ms: number | string) => new Date(Number(ms)).toISOString();
+
+// The Explore tab: developing Stories, the Events most outlets covered today, and today's topics.
+export async function explore(db: Db): Promise<Explore> {
+  const [developing, mostCovered, topics] = await Promise.all([
+    db.execute<{ id: string; label: string; event_count: number; last_event_ms: string; event_id: string; headline: string | null; image_url: string | null }>(sql`
+      select s.id, s.label, s.event_count, extract(epoch from s.last_event_at) * 1000 as last_event_ms,
+             latest.id as event_id, latest.headline, image.image_url
+      from ${stories} s
+      join lateral (
+        select e.id, e.headline from ${events} e
+        where e.story_id = s.id and e.status = 'published'
+        order by e.first_seen_at desc, e.id desc limit 1
+      ) latest on true
+      left join lateral (
+        select e.image_url from ${events} e
+        where e.story_id = s.id and e.status = 'published' and e.image_url is not null
+        order by e.first_seen_at desc limit 1
+      ) image on true
+      where s.status = 'active'
+        and s.event_count >= ${EXPLORE_DEVELOPING_MIN_EVENTS}
+        and s.last_event_at > now() - ${EXPLORE_DEVELOPING_WINDOW_HOURS}::int * interval '1 hour'
+      order by s.last_event_at desc, s.id
+      limit ${EXPLORE_DEVELOPING_LIMIT}
+    `),
+    db.execute<{ id: string; headline: string | null; image_url: string | null; category: Category | null; first_seen_ms: string; source_count: number }>(sql`
+      select e.id, e.headline, e.image_url, e.category, extract(epoch from e.first_seen_at) * 1000 as first_seen_ms,
+             count(distinct a.source_id)::int as source_count
+      from ${events} e join ${articles} a on a.event_id = e.id
+      where e.status = 'published' and e.first_seen_at > now() - ${EXPLORE_WINDOW_HOURS}::int * interval '1 hour'
+      group by e.id
+      having count(distinct a.source_id) >= ${EXPLORE_MOST_COVERED_MIN_SOURCES}
+      order by source_count desc, e.first_seen_at desc, e.id
+      limit ${EXPLORE_MOST_COVERED_LIMIT}
+    `),
+    // Grouped case-insensitively; the name shown is the spelling used most often.
+    db.execute<{ name: string; count: number }>(sql`
+      select mode() within group (order by entity) as name, count(distinct id)::int as count
+      from (
+        select e.id, trim(unnest(e.entities)) as entity from ${events} e
+        where e.status = 'published' and e.first_seen_at > now() - ${EXPLORE_WINDOW_HOURS}::int * interval '1 hour'
+      ) mentions
+      where entity <> ''
+      group by lower(entity)
+      having count(distinct id) >= ${EXPLORE_TOPICS_MIN_EVENTS}
+      order by count desc, name
+      limit ${EXPLORE_TOPICS_LIMIT}
+    `),
+  ]);
+
+  return {
+    developing: developing.map((row) => ({
+      storyId: row.id,
+      label: row.label,
+      eventCount: row.event_count,
+      lastEventAt: iso(row.last_event_ms),
+      latestEvent: { id: row.event_id, headline: row.headline ?? "", imageUrl: row.image_url },
+    })),
+    mostCovered: mostCovered.map((row) => ({
+      id: row.id,
+      headline: row.headline ?? "",
+      imageUrl: row.image_url,
+      firstSeenAt: iso(row.first_seen_ms),
+      category: row.category ?? "other",
+      sourceCount: row.source_count,
+    })),
+    topics: topics.map((row) => ({ name: row.name, count: row.count })),
+  };
+}
+
+// Full-text search over published cards from the last SEARCH_WINDOW_DAYS, best match first.
+// events.search_doc is a stored tsvector (headline, entities, card text) with a GIN index.
+export async function search(db: Db, query: string, limit: number): Promise<SearchResult> {
+  const rows = await db.execute<{ id: string; headline: string | null; image_url: string | null; category: Category | null; first_seen_ms: string }>(sql`
+    select e.id, e.headline, e.image_url, e.category, extract(epoch from e.first_seen_at) * 1000 as first_seen_ms
+    from ${events} e, websearch_to_tsquery('english', ${query}) q
+    where e.search_doc @@ q
+      and e.status = 'published' and e.first_seen_at > now() - ${SEARCH_WINDOW_DAYS}::int * interval '1 day'
+    order by ts_rank(e.search_doc, q) desc, e.first_seen_at desc, e.id
+    limit ${limit}
+  `);
+  return {
+    items: rows.map((row) => ({
+      id: row.id,
+      headline: row.headline ?? "",
+      imageUrl: row.image_url,
+      firstSeenAt: iso(row.first_seen_ms),
+      category: row.category ?? "other",
+    })),
+  };
 }

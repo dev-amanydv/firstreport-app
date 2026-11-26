@@ -3,6 +3,7 @@ import { dark, light } from "../theme/tokens";
 import { parseAppearance } from "./appearance";
 import { NO_CARDS_SEEN, parseSeen, recordSeen, shouldPrompt } from "./authPrompt";
 import { contrast } from "./contrast";
+import { addRecent, parseRecent, RECENT_SEARCHES_MAX, storyTitle } from "./explore";
 import { IMAGE_MAX, IMAGE_MIN, imageHeight, isRendered, progress } from "./layout";
 import { shareText } from "./share";
 import { initials, logoStack, logoStackLabel, logoUrl } from "./sources";
@@ -152,5 +153,31 @@ describe("parseAppearance", () => {
     expect(parseAppearance("system")).toBe("system");
     expect(parseAppearance(null)).toBe("system");
     expect(parseAppearance("purple")).toBe("system");
+  });
+});
+
+describe("storyTitle", () => {
+  it("spaces a PascalCase story label", () => {
+    expect(storyTitle("KesarganjBridgeCollapse")).toBe("Kesarganj Bridge Collapse");
+    expect(storyTitle("ISROChandrayaan3Launch")).toBe("ISRO Chandrayaan 3 Launch");
+    expect(storyTitle("#IPL2026Final")).toBe("IPL2026 Final");
+    expect(storyTitle("Budget")).toBe("Budget");
+  });
+});
+
+describe("recent searches", () => {
+  it("puts the newest first, without repeats, up to the cap", () => {
+    expect(addRecent(["Modi", "bridge"], " Bridge ")).toEqual(["Bridge", "Modi"]);
+    expect(addRecent(["a"], "  ")).toEqual(["a"]);
+    const many = Array.from({ length: 10 }, (_, i) => `q${i}`).reduce(addRecent, [] as string[]);
+    expect(many).toHaveLength(RECENT_SEARCHES_MAX);
+    expect(many[0]).toBe("q9");
+  });
+
+  it("reads only a stored list of strings", () => {
+    expect(parseRecent(null)).toEqual([]);
+    expect(parseRecent("not json")).toEqual([]);
+    expect(parseRecent('{"a":1}')).toEqual([]);
+    expect(parseRecent('["a", 2, "b"]')).toEqual(["a", "b"]);
   });
 });

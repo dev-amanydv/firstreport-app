@@ -191,3 +191,12 @@ export function BackIcon({ color, size = 24 }: IconProps) {
     </Svg>
   );
 }
+
+export function SearchIcon({ color, size = 20 }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" {...stroke(color)}>
+      <Circle cx="11" cy="11" r="7" />
+      <Line x1="16.2" x2="21" y1="16.2" y2="21" />
+    </Svg>
+  );
+}

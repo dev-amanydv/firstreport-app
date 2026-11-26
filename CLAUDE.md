@@ -7,7 +7,7 @@ You are the engineering partner on **FirstReport**, a mobile-first Indian news a
 ## 0\. Current status (keep this section up to date)
 
 - **Done:** M1 (ingest), M2 (embeddings + Events, thresholds tuned from labelled data), M3 (cards, prompt v2), M4 (Stories, summaries, material-change rewrites, budget brake, nightly job). M5 is built (`apps/api`: public `/v1` API, admin, cost page), and the worker and API run under Docker Compose (`--profile app`).
-- **In progress:** M6. The home screen and the History and Story-so-far sheets are built in `apps/mobile` (Expo SDK 58), following the design in `packages/designs`. **M6b (optional Google sign-in) is built**: the centred sign-in popup after cards 3, 5, 7 then every 7th, the settings-style Account page (Log in / Sign up or the profile, Appearance System/Light/Dark, How FirstReport works, Sign out, Delete account), and `/v1/auth/*`; the Google client IDs are `REPLACE_ME` placeholders until the developer adds them. Still to do on Account: the About perspectives entry, only when `/v1/config.perspectives` is true. The M5 gate (7 days unattended under $1.50/day) still has to be run.
+- **In progress:** M6. The home screen and the History and Story-so-far sheets are built in `apps/mobile` (Expo SDK 58), following the design in `packages/designs`. **M6b (optional Google sign-in) is built**: the centred sign-in popup after cards 3, 5, 7 then every 7th, the settings-style Account page (Log in / Sign up or the profile, Appearance System/Light/Dark, How FirstReport works, Sign out, Delete account), and `/v1/auth/*`; the Google client IDs are `REPLACE_ME` placeholders until the developer adds them. **Explore is built** (2026-11-26): search, trending topics, developing stories (opening a Story screen) and most covered today, from `/v1/explore` and `/v1/search`, with no extra Gemini calls. Still to do on Account: the About perspectives entry, only when `/v1/config.perspectives` is true. The M5 gate (7 days unattended under $1.50/day) still has to be run.
 - **Still open from M4:** the nightly `pg_dump` → R2 upload and the alert webhook are deferred to M7. Alerts are only logged (`ALERT:` lines) for now.
 - **Still yours:** the 13 `TODO` feed URLs in the seed.
 - **Perspectives are paused** (2026-11-25). Left/right perspectives and the "contested" call are behind `PERSPECTIVES_ENABLED` (off unless `"true"`). While it is off, Gemini is asked for facts only (card prompt v3), the API sends no `contested`/`left`/`right` and no perspective keys in `/v1/config`, the admin has no perspective controls, and the app shows plain text with no tabs or labels. Everything about perspectives in this brief applies only while the switch is on.
@@ -36,7 +36,7 @@ FirstReport shows news as full-screen cards:
   - Hide History and Summary when the storyline has only one event.  
 - Category side menu (National & Politics, Business & Economy, Technology, Sports, Entertainment, World), dark mode.
 
-**Deferred to v1.1. Do NOT build these now:** polls, hands-free text-to-speech with auto-swipe, PDF export. Leave room for them in the design, but write no code for them.
+**Deferred to v1.1. Do NOT build these now:** polls, a daily news quiz on Explore, hands-free text-to-speech with auto-swipe, PDF export. Leave room for them in the design, but write no code for them.
 
 ---
 
@@ -115,7 +115,7 @@ FirstReport shows news as full-screen cards:
 
 ## 5\. Data model (drizzle schema in `packages/db`)
 
-All ids are `uuid` (`defaultRandom()`). Migrations live in `packages/db/migrations` (`0000_enable_pgvector.sql`, `0001_init.sql`, `0002_rename_story_action.sql`); change the schema with `pnpm db:generate`, never by hand-editing applied migrations.
+All ids are `uuid` (`defaultRandom()`). Migrations live in `packages/db/migrations` (`0000_enable_pgvector.sql` … `0005_events_search_doc.sql`; `0004_search_doc_fn.sql` is a custom migration from `drizzle-kit generate --custom`, because drizzle cannot declare SQL functions); change the schema with `pnpm db:generate`, never by hand-editing applied migrations.
 
 ### `sources` — filled by the developer (seed script / admin); lightly updated by the worker
 
@@ -179,6 +179,7 @@ Unique constraints: `(source_id, canonical_url)`, `(source_id, guid)` where guid
 | gen\_version | int | prompt version used, so prompt fixes can be re-run |
 | merged\_into\_id | fk null | set by the nightly merge on the losing twin |
 | card\_generated\_at | timestamptz null |  |
+| search\_doc | tsvector, generated | `events_search_doc(headline, neutral, entities)` (migration 0004), stored; GIN-indexed for Explore search |
 
 ### `stories` — created in step 10, updated when Events join
 
@@ -207,7 +208,7 @@ Unique constraints: `(source_id, canonical_url)`, `(source_id, guid)` where guid
 
 `id, action (hide | unhide | regen | flip_contested | merge_events | move_event | merge_stories | rename_story | toggle_source), target_id, note, created_at`.
 
-**Indexes:** `events(status, first_seen_at desc)`, `events(category, first_seen_at desc)`, `events(story_id, first_seen_at)`, `events(last_article_at)`, `articles(source_id, published_at)`, `articles(event_id)`. No vector index needed at this scale (≤ \~5k rows per window). Revisit only if a query takes \> 50 ms.
+**Indexes:** `events(status, first_seen_at desc)`, `events(category, first_seen_at desc)`, `events(story_id, first_seen_at)`, `events(last_article_at)`, `articles(source_id, published_at)`, `articles(event_id)`, GIN on `events(search_doc)` (computing the tsvector per search took ~60 ms on 1.4k Events). No vector index needed at this scale (≤ \~5k rows per window). Revisit only if a query takes \> 50 ms.
 
 ---
 
@@ -301,6 +302,8 @@ Public, read-only, cacheable:
 - `GET /v1/stories/:id/timeline`: the Story's published Events, oldest first (id, headline, first\_seen\_at).  
 - `GET /v1/stories/:id/summary?asOf=:eventId`: the summary row for that Event; 404 if none.  
 - `GET /v1/categories`  
+- `GET /v1/explore`: `{ developing, mostCovered, topics }` for the Explore tab. `developing`: active Stories with `event_count >= EXPLORE_DEVELOPING_MIN_EVENTS` (3) and `last_event_at` in the last 72 h, newest first, each with its newest published Event (id, headline, image). `mostCovered`: published Events from the last 24 h with ≥ 2 outlets, by distinct outlet count. `topics`: `entities` shared by ≥ 2 of today's published Events, grouped case-insensitively. Limits and windows are `EXPLORE_*` in config.  
+- `GET /v1/search?q=&limit=20`: `websearch_to_tsquery('english', q)` against `events.search_doc`, published Events from the last `SEARCH_WINDOW_DAYS` (30), ranked by `ts_rank` then recency; 400 if `q` is under 2 characters.  
 - Sign-in (per user, `Cache-Control: private, no-store`, in their own Fastify plugin `apps/api/src/auth/routes.ts` so the public cache header never reaches them): `POST /v1/auth/google { idToken }` → `{ token, user }` (the ID token is checked with `google-auth-library` against `GOOGLE_WEB_CLIENT_ID`; 401 if rejected, 503 while it is unset or `REPLACE_ME`), `GET /v1/me`, `POST /v1/auth/signout`, `DELETE /v1/account` (store policy: in-app deletion). All take `Authorization: Bearer <token>`.
 - `GET /v1/config`: `{ showAiLabel, perspectives: true, minAppVersion }` with perspectives on; `{ minAppVersion }` with them off. Cards leave out `contested`/`left`/`right` entirely while perspectives are off, and the admin hides its perspective controls (`flip-contested` answers 404).
 
@@ -341,7 +344,7 @@ The UI follows the design artboard in `packages/designs` (a reference mockup: co
 - **Perspective pane:** a tab row (Left-leaning · Neutral · Right-leaning) over a horizontal swipe, Left ← Neutral → Right. The underline follows the finger in the pane's colour (Neutral green from the design; Left red and Right purple as in §1). The inactive tabs pulse on the first 3 contested cards. If `contested = false`: no tab row at all, just the neutral text, and horizontal swipe is disabled. If `/v1/config.showAiLabel` is true, show a small "AI-generated viewpoint" tag on the left/right panes.  
 - **Action bar:** hidden until the card is tapped; it hides again on the next card. History (bottom sheet with the timeline; tapping an item opens that Event as a modal card), Story so far (bottom sheet, fetched with `asOf` \= the current Event), Source (opens the top source URL), Share (native share with headline \+ current pane text \+ app link). History/Story so far hidden when `story.eventCount <= 1`.  
 - **Sign-in popup (M6b):** a centred card over the dimmed feed for signed-out readers after cards 3, 5, 7, then every 7th (each card counted once, across app opens). It waits until the reader rests on a card and no other sheet, share flow or modal is open. The hero fans the reader's last three card images; one "Continue with Google" button drawn to Google's branding rules; the corner close button, "Not now", the scrim and back close it. Copy (`apps/mobile/src/auth/copy.ts`) promises early access only, because saved stories and personalisation are not built.
-- **Account:** laid out like a signed-in account page for everyone. Header: a placeholder avatar with **Log in** (outline) and **Sign up** (filled) while signed out, both running Google sign-in; the Google photo, name and email once signed in. Then grouped rows: Your reading (Saved stories, Followed stories: "Soon"), Preferences (Appearance: System / Light / Dark, kept in AsyncStorage and applied with `Appearance.setColorScheme`), About ("How FirstReport works" screen, Privacy policy and Terms marked "Soon" until their URLs exist, version), and, signed in, Account (Sign out, Delete account with confirmation). An "About perspectives" entry is added only while perspectives are on. **Explore** has no content yet.  
+- **Account:** laid out like a signed-in account page for everyone. Header: a placeholder avatar with **Log in** (outline) and **Sign up** (filled) while signed out, both running Google sign-in; the Google photo, name and email once signed in. Then grouped rows: Your reading (Saved stories, Followed stories: "Soon"), Preferences (Appearance: System / Light / Dark, kept in AsyncStorage and applied with `Appearance.setColorScheme`), About ("How FirstReport works" screen, Privacy policy and Terms marked "Soon" until their URLs exist, version), and, signed in, Account (Sign out, Delete account with confirmation). An "About perspectives" entry is added only while perspectives are on. **Explore:** a search bar (results from `/v1/search`, recent searches kept on the phone), then Trending today (topic chips that run a search), Developing stories (a horizontal rail; a card opens the Story screen `app/story/[id].tsx` with the latest story-so-far and the full timeline) and Most covered today (a ranked list, "Covered by N outlets"). Rows open the Event modal. A daily quiz may later take a slot at the top (v1.1, not built).  
 - **Images:** expo-image with a per-category placeholder on error.  
 - The app makes **no AI calls** and holds **no secrets**. The session token lives in `expo-secure-store`; the Google SDK is used only in `apps/mobile/src/auth/google.ts`.
 

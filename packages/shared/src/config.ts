@@ -115,6 +115,21 @@ export const CARD_MAX_SOURCES = 5;
 // The app's progress bar counts the category's cards from this window.
 export const FEED_PROGRESS_WINDOW_HOURS = 24;
 export const SHOW_AI_LABEL = false;
+// Explore tab: storylines still developing, the Events most outlets covered, and today's topics.
+export const EXPLORE_DEVELOPING_MIN_EVENTS = 3;
+export const EXPLORE_DEVELOPING_WINDOW_HOURS = 72;
+export const EXPLORE_DEVELOPING_LIMIT = 10;
+export const EXPLORE_WINDOW_HOURS = 24;
+export const EXPLORE_MOST_COVERED_MIN_SOURCES = 2;
+export const EXPLORE_MOST_COVERED_LIMIT = 10;
+export const EXPLORE_TOPICS_MIN_EVENTS = 2;
+export const EXPLORE_TOPICS_LIMIT = 10;
+// Search: Postgres full-text over published cards from this window (no index needed at this size).
+export const SEARCH_WINDOW_DAYS = 30;
+export const SEARCH_QUERY_MIN = 2;
+export const SEARCH_QUERY_MAX = 100;
+export const SEARCH_LIMIT_DEFAULT = 20;
+export const SEARCH_LIMIT_MAX = 50;
 
 // Left/right perspectives (and the "contested" call that gates them) are paused. Off unless
 // PERSPECTIVES_ENABLED=true: the card prompt then asks Gemini for facts only, and the API and admin

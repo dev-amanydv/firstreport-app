@@ -1,0 +1,2 @@
+ALTER TABLE "events" ADD COLUMN "search_doc" "tsvector" GENERATED ALWAYS AS (events_search_doc(headline, neutral, entities)) STORED;--> statement-breakpoint
+CREATE INDEX "events_search_doc_idx" ON "events" USING gin ("search_doc");
