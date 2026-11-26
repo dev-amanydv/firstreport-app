@@ -4,6 +4,7 @@ import {
   and,
   articles,
   asc,
+  cardLagByDay,
   count,
   desc,
   eq,
@@ -11,6 +12,7 @@ import {
   events,
   gte,
   llmCalls,
+  rssLagBySource,
   sources,
   sql,
   startOfToday,
@@ -21,6 +23,7 @@ import {
   ADMIN_PAGE_SIZE,
   categorySchema,
   COST_PAGE_DAYS,
+  FRESHNESS_PAGE_DAYS,
   DAILY_BUDGET_HARD,
   DAILY_BUDGET_SOFT,
   FREE_TIER_DAILY_REQUESTS,
@@ -315,6 +318,9 @@ export async function pageRoutes(app: FastifyInstance, { db }: AdminDeps) {
       .groupBy(llmCalls.model);
     const spentToday = today.reduce((sum, row) => sum + row.cost, 0);
     const freeTier = geminiFreeTier();
+    const lagDays = await cardLagByDay(db, FRESHNESS_PAGE_DAYS);
+    const feedLag = await rssLagBySource(db, FRESHNESS_PAGE_DAYS);
+    const minutes = (value: number | null) => (value === null ? "-" : value.toFixed(0));
 
     const totals = new Map<string, number>();
     for (const row of days) totals.set(row.day, (totals.get(row.day) ?? 0) + row.cost);
@@ -342,6 +348,17 @@ export async function pageRoutes(app: FastifyInstance, { db }: AdminDeps) {
           })}
         </p>
       </div>
+      <h2>Freshness, last ${FRESHNESS_PAGE_DAYS} days</h2>
+      <p class="muted">Minutes from the first outlet's publish time to our card. Rewritten cards are left out.</p>
+      <table>
+        <tr><th>Day</th><th>Cards</th><th>p50</th><th>p90</th><th>Max</th></tr>
+        ${lagDays.map((row) => html`<tr><td>${row.day}</td><td>${row.cards}</td><td>${minutes(row.p50)}</td><td>${minutes(row.p90)}</td><td>${minutes(row.max)}</td></tr>`)}
+      </table>
+      <p class="muted">Feed lag: minutes from each outlet's publish time to when we first fetched the article.</p>
+      <table>
+        <tr><th>Outlet</th><th>Articles</th><th>p50</th><th>p90</th></tr>
+        ${feedLag.map((row) => html`<tr><td>${row.name}</td><td>${row.articles}</td><td>${minutes(row.p50)}</td><td>${minutes(row.p90)}</td></tr>`)}
+      </table>
       <h2>Last ${COST_PAGE_DAYS} days</h2>
       <table>
         <tr><th>Day</th><th>Purpose</th><th>Calls</th><th>Tokens</th><th>Cost (USD)</th></tr>

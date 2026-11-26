@@ -227,6 +227,8 @@ export const CATEGORY_SHORT_LABELS = {
 
 export const ADMIN_PAGE_SIZE = 50;
 export const COST_PAGE_DAYS = 30;
+// Admin cost page: how long news takes to reach a card, and how far behind each outlet's feed runs.
+export const FRESHNESS_PAGE_DAYS = 7;
 
 // Sign-in box for readers who are not signed in: after these many cards seen (counted once each,
 // across app opens), then on every AUTH_PROMPT_EVERY-th card after the last of them.

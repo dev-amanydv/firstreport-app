@@ -225,4 +225,15 @@ describe("pages", () => {
     expect(page.body).toContain("$0.8750");
     expect(page.body).toContain("$0.7500");
   });
+
+  it("shows how long news took to reach a card, and each outlet's feed lag", async () => {
+    const source = await addSource(db, "Slow Times");
+    const reported = new Date(Date.now() - 30 * 60_000);
+    await addEvent(db, { firstSeenAt: reported, cardGeneratedAt: new Date() }, [source.id]);
+
+    const page = await get("/admin/cost");
+    expect(page.body).toContain("Freshness");
+    expect(page.body).toMatch(/<td>1<\/td><td>30<\/td><td>30<\/td><td>30<\/td>/);
+    expect(page.body).toMatch(/<td>Slow Times<\/td><td>1<\/td><td>30<\/td>/);
+  });
 });

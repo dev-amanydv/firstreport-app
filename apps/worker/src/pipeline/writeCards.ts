@@ -1,4 +1,4 @@
-import { and, articles, desc, eq, events, gte, lte, or, sql, type Db } from "@fr/db";
+import { and, articles, cardLagMinutes, desc, eq, events, gte, lte, or, sql, type Db } from "@fr/db";
 import { CARD_FAST_SOURCES, CARD_MAX_AGE_HOURS, CARD_MODEL, CARD_SETTLE_MINUTES, CARDS_PER_TICK } from "@fr/shared";
 import type { Gemini } from "../gemini/client.js";
 import {
@@ -94,6 +94,7 @@ export async function writeCards(db: Db, gemini: Gemini, now: Date) {
     .orderBy(desc(outlets), desc(events.firstSeenAt))
     .limit(CARDS_PER_TICK);
 
+  const publishedIds: string[] = [];
   for (const [index, event] of pending.entries()) {
     let attempt: CardAttempt;
     try {
@@ -106,12 +107,19 @@ export async function writeCards(db: Db, gemini: Gemini, now: Date) {
 
     if (attempt.card && !attempt.errors.length) {
       await publish(db, event.id, attempt.card);
+      publishedIds.push(event.id);
       counts.published++;
     } else {
       console.warn(`card failed for event ${event.id}: ${attempt.errors.join("; ")}`);
       await markFailed(db, event.id);
       counts.failed++;
     }
+  }
+
+  if (publishedIds.length) {
+    const lag = await cardLagMinutes(db, publishedIds);
+    const minutes = (value: number | null) => (value === null ? "-" : value.toFixed(0));
+    console.log(`freshness: ${lag.cards} cards, reported→card p50 ${minutes(lag.p50)} min, p90 ${minutes(lag.p90)}, max ${minutes(lag.max)}`);
   }
 
   return counts;

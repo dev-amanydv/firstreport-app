@@ -1,5 +1,5 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { articles, eq, events, sources, sql, type Database } from "@fr/db";
+import { articles, cardLagMinutes, eq, events, sources, sql, type Database } from "@fr/db";
 import { CARD_MAX_AGE_HOURS, CARD_SETTLE_MINUTES } from "@fr/shared";
 import { DailyQuotaReached, type Gemini } from "../src/gemini/client.js";
 import { CARD_PROMPT_VERSION_FACTS, CARD_PROMPT_VERSION_PERSPECTIVES } from "../src/prompts/card.js";
@@ -178,6 +178,17 @@ describe("writeCards", () => {
     // Newest first: the second Event gets the one card Gemini wrote.
     expect((await eventRow(second)).status).toBe("published");
     expect((await eventRow(first)).status).toBe("collecting");
+  });
+
+  it("measures minutes from the first report to the card", async () => {
+    const id = await addEvent(new Date(Date.now() - 40 * 60_000));
+    gemini.askJson.mockResolvedValueOnce(goodCard);
+    await writeCards(db, gemini, new Date());
+
+    const lag = await cardLagMinutes(db, [id]);
+    expect(lag.cards).toBe(1);
+    expect(lag.p50).toBeGreaterThan(39);
+    expect(lag.p50).toBeLessThan(41);
   });
 
   it("does not touch an Event that is no longer collecting", async () => {

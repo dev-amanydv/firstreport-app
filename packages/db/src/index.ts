@@ -4,3 +4,4 @@ export * from "./client.js";
 export * from "./env.js";
 export * from "./time.js";
 export * from "./ops.js";
+export * from "./freshness.js";
