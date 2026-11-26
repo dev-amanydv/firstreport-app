@@ -3,7 +3,9 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router, useLocalSearchParams } from "expo-router";
 import { useSummary, useTimeline } from "../../src/api/client";
 import { BackIcon } from "../../src/components/icons";
+import { TimelineSkeleton } from "../../src/components/HistorySheet";
 import { SheetMessage } from "../../src/components/Sheet";
+import { Bone, Shimmer } from "../../src/components/Skeleton";
 import { storyTitle } from "../../src/lib/explore";
 import { storyDate } from "../../src/lib/time";
 import { fonts, metrics, type Palette } from "../../src/theme/tokens";
@@ -23,14 +25,36 @@ export default function StoryScreen() {
   const updates = timeline.data ? items.length : Number(count) || null;
 
   let body;
-  if (timeline.isPending) body = <SheetMessage palette={palette} text="Loading the story…" />;
+  if (timeline.isPending)
+    body = (
+      <Shimmer palette={palette} label="Loading the story">
+        <View style={[styles.panel, { backgroundColor: palette.card }]}>
+          <Bone height={10} width={180} />
+          {[100, 96, 100, 90, 100, 58].map((w, i) => (
+            <Bone key={i} height={15} width={`${w}%`} style={{ marginTop: i === 0 ? 16 : 11 }} />
+          ))}
+        </View>
+        <View style={[styles.panel, styles.timelinePanel, { backgroundColor: palette.card }]}>
+          <TimelineSkeleton palette={palette} rows={3} />
+        </View>
+      </Shimmer>
+    );
   else if (timeline.isError)
     body = <SheetMessage palette={palette} text="Couldn't load this story." action={{ label: "Try again", onPress: () => void timeline.refetch() }} />;
   else if (!items.length) body = <SheetMessage palette={palette} text="This story is no longer available." />;
   else
     body = (
       <>
-        {summary.data ? (
+        {summary.isPending ? (
+          <Shimmer palette={palette} label="Loading the story so far">
+            <View style={[styles.panel, { backgroundColor: palette.card }]}>
+              <Bone height={10} width={180} />
+              {[100, 96, 100, 62].map((w, i) => (
+                <Bone key={i} height={15} width={`${w}%`} style={{ marginTop: i === 0 ? 16 : 11 }} />
+              ))}
+            </View>
+          </Shimmer>
+        ) : summary.data ? (
           <View style={[styles.panel, { backgroundColor: palette.card }]}>
             <Text style={[styles.label, { color: palette.muted }]}>STORY SO FAR · AS OF {storyDate(latest!.firstSeenAt).toUpperCase()}</Text>
             <Text style={[styles.summary, { color: palette.ink }]}>{summary.data.summary}</Text>
@@ -109,6 +133,8 @@ const styles = StyleSheet.create({
   panel: { borderRadius: metrics.cardRadius, padding: 18 },
   label: { fontFamily: fonts.semibold, fontSize: 11, letterSpacing: 1.2 },
   timelineLabel: { marginTop: 24, marginBottom: 10, paddingHorizontal: 16 },
+  // Where the real timeline panel sits, below its label.
+  timelinePanel: { marginTop: 24 + 16 + 10 },
   summary: { fontFamily: fonts.regular, fontSize: 17, lineHeight: 26, marginTop: 8 },
   row: { flexDirection: "row", gap: 12 },
   rail: { width: DOT, alignItems: "center" },

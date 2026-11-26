@@ -13,6 +13,10 @@ export const light = {
   creditText: "#FFFFFF",
   placeholderInk: "rgba(0,0,0,0.09)",
   scrim: "rgba(0,0,0,0.4)",
+  // Loading placeholders: a quiet block with a soft light sweeping across it.
+  skeleton: "#ECECEA",
+  skeletonOnCanvas: "#D9D9D7",
+  skeletonShine: "rgba(255,255,255,0.85)",
   // Outlet logos sit on white in both themes, so dark-on-transparent favicons stay visible.
   logoBg: "#FFFFFF",
   logoEdge: "rgba(0,0,0,0.12)",
@@ -37,6 +41,9 @@ export const dark: Palette = {
   creditText: "#FFFFFF",
   placeholderInk: "rgba(255,255,255,0.07)",
   scrim: "rgba(0,0,0,0.6)",
+  skeleton: "#242424",
+  skeletonOnCanvas: "#1C1C1C",
+  skeletonShine: "rgba(255,255,255,0.07)",
   logoBg: "#FFFFFF",
   logoEdge: "rgba(255,255,255,0.16)",
   neutral: "#3FA674",

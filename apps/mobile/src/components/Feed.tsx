@@ -12,6 +12,7 @@ import { imageHeight, isRendered, progress, RENDER_AHEAD } from "../lib/layout";
 import { useAnyOverlayOpen } from "../overlays";
 import { fonts, metrics, type Palette } from "../theme/tokens";
 import { Card } from "./Card";
+import { Bone, Shimmer } from "./Skeleton";
 import type { FeedCategory } from "./CategoryStrip";
 import { SignInPopup } from "./SignInPopup";
 
@@ -160,21 +161,30 @@ function Frame({ palette, children }: { palette: Palette; children: React.ReactN
   return <View style={[styles.frame, { backgroundColor: palette.card }]}>{children}</View>;
 }
 
-// Flat blocks in the exact layout of a real card, so nothing jumps when it arrives.
+// Shimmering blocks in the exact layout of a real card (image, progress line, headline, age and outlet
+// logos, then the text), so nothing jumps when it arrives.
 export function Skeleton({ palette, height }: { palette: Palette; height: number }) {
-  const block = { backgroundColor: palette.hairline };
   return (
     <Frame palette={palette}>
-      <View style={[{ height: imageHeight(height) + 2 }, block]} />
-      <View style={styles.skeletonBody} accessibilityLabel="Loading the news">
-        <View style={[styles.bar, block, { marginTop: 4, height: 22 }]} />
-        <View style={[styles.bar, block, { marginTop: 8, height: 22, width: "62%" }]} />
-        <View style={[styles.bar, block, { marginTop: 14, height: 12, width: 90 }]} />
-        <View style={[{ marginTop: 16, height: 40, borderBottomWidth: 1, borderBottomColor: palette.hairline }]} />
-        {[100, 96, 100, 88, 100, 70].map((w, i) => (
-          <View key={i} style={[styles.bar, block, { marginTop: i === 0 ? 16 : 12, height: 14, width: `${w}%` }]} />
-        ))}
-      </View>
+      <Shimmer palette={palette} label="Loading the news">
+        <Bone height={imageHeight(height)} radius={0} />
+        <View style={[styles.track, { backgroundColor: palette.hairline }]} />
+        <View style={styles.skeletonBody}>
+          <Bone height={22} style={{ marginTop: 4 }} />
+          <Bone height={22} width="68%" style={{ marginTop: 8 }} />
+          <View style={styles.skeletonByline}>
+            <Bone height={12} width={64} />
+            <View style={styles.skeletonLogos}>
+              {[0, 1, 2].map((i) => (
+                <Bone key={i} height={19} width={19} radius={10} style={{ marginLeft: i ? -5 : 0, borderWidth: 1.5, borderColor: palette.card }} />
+              ))}
+            </View>
+          </View>
+          {[100, 96, 100, 88, 100, 62].map((w, i) => (
+            <Bone key={i} height={15} width={`${w}%`} style={{ marginTop: i === 0 ? 22 : 11 }} />
+          ))}
+        </View>
+      </Shimmer>
     </Frame>
   );
 }
@@ -201,7 +211,9 @@ const styles = StyleSheet.create({
   page: { paddingHorizontal: metrics.cardInset },
   frame: { flex: 1, marginHorizontal: metrics.cardInset, borderRadius: metrics.cardRadius, overflow: "hidden" },
   skeletonBody: { paddingTop: 14, paddingHorizontal: 16 },
-  bar: { borderRadius: 2 },
+  skeletonByline: { marginTop: 12, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  skeletonLogos: { flexDirection: "row" },
+  track: { height: 2 },
   message: { flex: 1, justifyContent: "center", paddingHorizontal: 24, gap: 14 },
   messageTitle: { fontFamily: fonts.headline, fontSize: 26, lineHeight: 30, letterSpacing: -0.39 },
   messageAction: { fontFamily: fonts.semibold, fontSize: 15, textDecorationLine: "underline" },

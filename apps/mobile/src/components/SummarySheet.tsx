@@ -3,6 +3,7 @@ import { useSummary } from "../api/client";
 import { storyDate } from "../lib/time";
 import { fonts, type Palette } from "../theme/tokens";
 import { Sheet, SheetMessage } from "./Sheet";
+import { Bone, Shimmer } from "./Skeleton";
 
 type Props = {
   palette: Palette;
@@ -18,7 +19,15 @@ export function SummarySheet({ palette, visible, storyId, eventId, eventAt, onCl
   const summary = useSummary(storyId, eventId, visible);
 
   let content;
-  if (summary.isPending) content = <SheetMessage palette={palette} text="Loading the story so far…" />;
+  if (summary.isPending)
+    content = (
+      <Shimmer palette={palette} label="Loading the story so far">
+        <Bone height={11} width={120} />
+        {[100, 97, 100, 92, 100, 95, 54].map((w, i) => (
+          <Bone key={i} height={15} width={`${w}%`} style={{ marginTop: i === 0 ? 16 : 11 }} />
+        ))}
+      </Shimmer>
+    );
   else if (summary.isError)
     content = (
       <SheetMessage palette={palette} text="Couldn't load the story so far." action={{ label: "Try again", onPress: () => void summary.refetch() }} />

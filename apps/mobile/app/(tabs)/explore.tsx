@@ -5,6 +5,7 @@ import { router } from "expo-router";
 import { SEARCH_QUERY_MIN, type Explore as ExploreData } from "@fr/shared";
 import { useExplore, useSearch } from "../../src/api/client";
 import { EventRow } from "../../src/components/explore/EventRow";
+import { ExploreSkeleton, ResultsSkeleton } from "../../src/components/explore/ExploreSkeleton";
 import { SearchBar } from "../../src/components/explore/SearchBar";
 import { StoryRail } from "../../src/components/explore/StoryRail";
 import { TopicChips } from "../../src/components/explore/TopicChips";
@@ -76,7 +77,7 @@ function Sections({ palette, onTopic }: { palette: Palette; onTopic: (name: stri
   };
 
   let content: ReactNode;
-  if (explore.isPending) content = <SheetMessage palette={palette} text="Loading…" />;
+  if (explore.isPending) content = <ExploreSkeleton palette={palette} />;
   else if (explore.isError)
     content = <SheetMessage palette={palette} text="Couldn't load Explore." action={{ label: "Try again", onPress: () => void explore.refetch() }} />;
   else if (isEmpty(explore.data)) content = <SheetMessage palette={palette} text="Nothing to explore yet. Check back in a little while." />;
@@ -170,7 +171,7 @@ function SearchView({ palette, query, onPick }: { palette: Palette; query: strin
     ) : (
       <SheetMessage palette={palette} text="Search the last 30 days of stories by topic, person or place." />
     );
-  else if (results.isPending) content = <SheetMessage palette={palette} text="Searching…" />;
+  else if (results.isPending) content = <ResultsSkeleton palette={palette} />;
   else if (results.isError)
     content = <SheetMessage palette={palette} text="Couldn't search right now." action={{ label: "Try again", onPress: () => void results.refetch() }} />;
   else if (!results.data.items.length) content = <SheetMessage palette={palette} text={`No stories match “${debounced.trim()}”.`} />;

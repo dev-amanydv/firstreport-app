@@ -22,6 +22,7 @@ import {
 } from "../../src/components/icons";
 import { AppearancePicker } from "../../src/components/AppearancePicker";
 import { Sheet } from "../../src/components/Sheet";
+import { Bone, Shimmer } from "../../src/components/Skeleton";
 import type { AppearanceChoice } from "../../src/lib/appearance";
 import { initials } from "../../src/lib/sources";
 import { fonts, metrics, type Palette } from "../../src/theme/tokens";
@@ -47,7 +48,13 @@ export default function Account() {
           Account
         </Text>
 
-        {signedIn ? <Profile palette={palette} user={session.user} /> : <SignedOutHeader palette={palette} />}
+        {session.status === "loading" ? (
+          <HeaderSkeleton palette={palette} />
+        ) : signedIn ? (
+          <Profile palette={palette} user={session.user} />
+        ) : (
+          <SignedOutHeader palette={palette} />
+        )}
 
         <Section palette={palette} label="Your reading">
           <Row palette={palette} icon={BookmarkIcon} label="Saved stories" soon />
@@ -85,6 +92,27 @@ export default function Account() {
           }}
         />
       </Sheet>
+    </View>
+  );
+}
+
+// While the saved session is read: the avatar, two lines and the buttons' shapes.
+function HeaderSkeleton({ palette }: { palette: Palette }) {
+  return (
+    <View style={[styles.panel, styles.header, { backgroundColor: palette.card }]}>
+      <Shimmer palette={palette} label="Loading your account">
+        <View style={styles.headerTop}>
+          <Bone height={64} width={64} radius={32} />
+          <View style={styles.who}>
+            <Bone height={16} width="55%" />
+            <Bone height={12} width="85%" style={{ marginTop: 8 }} />
+          </View>
+        </View>
+        <View style={styles.buttons}>
+          <Bone height={48} width="auto" radius={24} style={{ flex: 1 }} />
+          <Bone height={48} width="auto" radius={24} style={{ flex: 1 }} />
+        </View>
+      </Shimmer>
     </View>
   );
 }
