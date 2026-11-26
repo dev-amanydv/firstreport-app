@@ -15,7 +15,6 @@ import {
   ChevronIcon,
   ContrastIcon,
   DocumentIcon,
-  InfoIcon,
   PersonIcon,
   ShieldIcon,
   SignOutIcon,
@@ -80,7 +79,6 @@ export default function Account() {
         </Section>
 
         <Section palette={palette} label="About">
-          <Row palette={palette} icon={InfoIcon} label="How FirstReport works" onPress={() => router.push("/about")} />
           <LegalRow palette={palette} icon={ShieldIcon} label="Privacy policy" url={LEGAL.privacyUrl} />
           <LegalRow palette={palette} icon={DocumentIcon} label="Terms of use" url={LEGAL.termsUrl} />
           <Row palette={palette} label={`Version ${VERSION}`} muted />
