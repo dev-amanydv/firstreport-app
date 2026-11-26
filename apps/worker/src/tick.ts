@@ -58,7 +58,7 @@ async function runSteps(db: Db, { dryRun, gemini, maxNewArticlesPerDay = MAX_NEW
     assign = await runStep("assign", () => assignArticles(db, gemini));
     const brake = await budgetBrake(db, dailyRequestCapsFromEnv());
     console.log(`budget: $${brake.spentUsd.toFixed(3)} today${brake.skipMaterial ? ", material check skipped" : ""}`);
-    if (!brake.pauseCards) cards = await runStep("cards", () => writeCards(db, gemini, startedAt));
+    if (!brake.pauseCards) cards = await runStep("cards", () => writeCards(db, gemini, new Date()));
     stories = await runStep("stories", () => linkStories(db, gemini));
     summaries = await runStep("summaries", () => updateSummaries(db, gemini));
     if (!brake.skipMaterial) material = await runStep("material", () => checkMaterialChanges(db, gemini));

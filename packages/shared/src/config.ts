@@ -1,4 +1,4 @@
-export const TICK_CRON = "*/15 * * * *";
+export const TICK_CRON = "*/5 * * * *";
 export const TICK_LOCK_ID = 7_315_001;
 export const TICK_EXPIRE_SECONDS = 60 * 60;
 
@@ -71,6 +71,10 @@ export const CARD_MAX_WORDS = 60;
 export const HEADLINE_MAX_WORDS = 12;
 export const CARD_LEDE_MAX_CHARS = 1_000;
 export const CARDS_PER_TICK = 40;
+// An Event gets its card once it has waited this long for sibling articles, or at once when it already has
+// articles from CARD_FAST_SOURCES outlets (breaking news). Ready Events are carded most-covered, then newest, first.
+export const CARD_SETTLE_MINUTES = 10;
+export const CARD_FAST_SOURCES = 2;
 export const CARD_MAX_AGE_HOURS = 24;
 
 // Starting values for gemini-embedding-2 Event centroids; tune with pnpm label:pairs --events.

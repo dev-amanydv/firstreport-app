@@ -1,5 +1,5 @@
-import { and, asc, eq, events, gte, lt, type Db } from "@fr/db";
-import { CARD_MAX_AGE_HOURS, CARD_MODEL, CARDS_PER_TICK } from "@fr/shared";
+import { and, articles, desc, eq, events, gte, lte, or, sql, type Db } from "@fr/db";
+import { CARD_FAST_SOURCES, CARD_MAX_AGE_HOURS, CARD_MODEL, CARD_SETTLE_MINUTES, CARDS_PER_TICK } from "@fr/shared";
 import type { Gemini } from "../gemini/client.js";
 import {
   cardPrompt,
@@ -72,17 +72,26 @@ async function markFailed(db: Db, eventId: string) {
     .where(and(eq(events.id, eventId), eq(events.status, "collecting")));
 }
 
-// Steps 7-9. Only Events created before this tick started get a card, so sibling articles have a tick to arrive.
-// Events older than CARD_MAX_AGE_HOURS are never carded: stale news is not worth the Gemini calls.
-export async function writeCards(db: Db, gemini: Gemini, tickStartedAt: Date) {
+// Steps 7-9. An Event is ready once it has had CARD_SETTLE_MINUTES for sibling articles to arrive, or at once
+// when CARD_FAST_SOURCES outlets already cover it (breaking news). Most-covered, then newest, go first, so a
+// backlog delays old news rather than new. Events older than CARD_MAX_AGE_HOURS are never carded.
+export async function writeCards(db: Db, gemini: Gemini, now: Date) {
   const counts = { published: 0, failed: 0, deferred: 0 };
-  const oldest = new Date(tickStartedAt.getTime() - CARD_MAX_AGE_HOURS * 3600_000);
+  const oldest = new Date(now.getTime() - CARD_MAX_AGE_HOURS * 3600_000);
+  const settled = new Date(now.getTime() - CARD_SETTLE_MINUTES * 60_000);
+  const outlets = sql<number>`(select count(distinct ${articles.sourceId}) from ${articles} where ${articles.eventId} = ${events.id})`;
 
   const pending = await db
     .select({ id: events.id })
     .from(events)
-    .where(and(eq(events.status, "collecting"), lt(events.firstSeenAt, tickStartedAt), gte(events.firstSeenAt, oldest)))
-    .orderBy(asc(events.firstSeenAt))
+    .where(
+      and(
+        eq(events.status, "collecting"),
+        gte(events.firstSeenAt, oldest),
+        or(lte(events.firstSeenAt, settled), gte(outlets, CARD_FAST_SOURCES)),
+      ),
+    )
+    .orderBy(desc(outlets), desc(events.firstSeenAt))
     .limit(CARDS_PER_TICK);
 
   for (const [index, event] of pending.entries()) {

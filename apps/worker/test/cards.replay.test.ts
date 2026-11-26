@@ -1,6 +1,6 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { articles, eq, events, sources, sql, type Database } from "@fr/db";
-import { CARD_MAX_AGE_HOURS } from "@fr/shared";
+import { CARD_MAX_AGE_HOURS, CARD_SETTLE_MINUTES } from "@fr/shared";
 import { DailyQuotaReached, type Gemini } from "../src/gemini/client.js";
 import { CARD_PROMPT_VERSION_FACTS, CARD_PROMPT_VERSION_PERSPECTIVES } from "../src/prompts/card.js";
 import { writeCards } from "../src/pipeline/writeCards.js";
@@ -30,18 +30,18 @@ let sourceIds: string[] = [];
 let tickStartedAt: Date;
 let counter = 0;
 
-async function addEvent(firstSeenAt = new Date(tickStartedAt.getTime() - 15 * 60_000)) {
+async function addEvent(firstSeenAt = new Date(tickStartedAt.getTime() - 15 * 60_000), outlets = sourceIds.length, place = "Kesarganj") {
   const [event] = await db
     .insert(events)
     .values({ centroid, firstSeenAt, lastArticleAt: firstSeenAt })
     .returning({ id: events.id });
-  for (const sourceId of sourceIds) {
+  for (const sourceId of sourceIds.slice(0, outlets)) {
     counter++;
     await db.insert(articles).values({
       sourceId,
       url: `https://news.test/${counter}`,
       canonicalUrl: `https://news.test/${counter}`,
-      title: "Bridge collapses in Kesarganj",
+      title: `Bridge collapses in ${place}`,
       lede: "The bridge in Kesarganj collapsed on Monday, killing 12 people.",
       contentHash: `hash-${counter}`,
       publishedAt: firstSeenAt,
@@ -132,12 +132,33 @@ describe("writeCards", () => {
     expect(await eventRow(id)).toMatchObject({ status: "failed", headline: null });
   });
 
-  it("waits a tick for Events created after this tick started", async () => {
-    const id = await addEvent(new Date(tickStartedAt.getTime() + 1000));
+  it("lets a single-outlet Event settle before writing its card", async () => {
+    const fresh = await addEvent(new Date(tickStartedAt.getTime() - 60_000), 1);
+    const settled = await addEvent(new Date(tickStartedAt.getTime() - (CARD_SETTLE_MINUTES + 1) * 60_000), 1);
+    gemini.askJson.mockResolvedValue(goodCard);
 
-    expect(await writeCards(db, gemini, tickStartedAt)).toEqual({ published: 0, failed: 0, deferred: 0 });
-    expect(gemini.askJson).not.toHaveBeenCalled();
-    expect((await eventRow(id)).status).toBe("collecting");
+    expect(await writeCards(db, gemini, tickStartedAt)).toEqual({ published: 1, failed: 0, deferred: 0 });
+    expect((await eventRow(fresh)).status).toBe("collecting");
+    expect((await eventRow(settled)).status).toBe("published");
+  });
+
+  it("cards an Event at once when several outlets already cover it", async () => {
+    const id = await addEvent(new Date(tickStartedAt.getTime() - 60_000), 2);
+    gemini.askJson.mockResolvedValueOnce(goodCard);
+
+    expect(await writeCards(db, gemini, tickStartedAt)).toMatchObject({ published: 1 });
+    expect((await eventRow(id)).status).toBe("published");
+  });
+
+  it("cards the most-covered, then the newest, Events first", async () => {
+    await addEvent(new Date(tickStartedAt.getTime() - 60 * 60_000), 1, "Oldtown");
+    await addEvent(new Date(tickStartedAt.getTime() - 20 * 60_000), 1, "Newtown");
+    await addEvent(new Date(tickStartedAt.getTime() - 2 * 60 * 60_000), 2, "Bigtown");
+    gemini.askJson.mockResolvedValue(goodCard);
+
+    expect(await writeCards(db, gemini, tickStartedAt)).toMatchObject({ published: 3 });
+    const places = gemini.askJson.mock.calls.map(([, prompt]) => /Bridge collapses in (\w+)/.exec(prompt as string)![1]);
+    expect(places).toEqual(["Bigtown", "Newtown", "Oldtown"]);
   });
 
   it("never writes cards for Events older than the age limit", async () => {
@@ -154,8 +175,9 @@ describe("writeCards", () => {
     gemini.askJson.mockResolvedValueOnce(goodCard).mockRejectedValue(new DailyQuotaReached("model", 450));
 
     expect(await writeCards(db, gemini, tickStartedAt)).toEqual({ published: 1, failed: 0, deferred: 1 });
-    expect((await eventRow(first)).status).toBe("published");
-    expect((await eventRow(second)).status).toBe("collecting");
+    // Newest first: the second Event gets the one card Gemini wrote.
+    expect((await eventRow(second)).status).toBe("published");
+    expect((await eventRow(first)).status).toBe("collecting");
   });
 
   it("does not touch an Event that is no longer collecting", async () => {
