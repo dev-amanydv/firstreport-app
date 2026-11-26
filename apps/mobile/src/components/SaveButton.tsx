@@ -5,6 +5,7 @@ import * as Haptics from "expo-haptics";
 import type { CardPayload } from "@fr/shared";
 import { toggleSaved, useIsSaved } from "../saved";
 import { showToast } from "../toast";
+import { tourEmit, useTourTarget } from "../tour";
 import type { Palette } from "../theme/tokens";
 import { BookmarkIcon } from "./icons";
 
@@ -16,10 +17,12 @@ const SLOP = (44 - ICON) / 2;
 export function SaveButton({ palette, card }: { palette: Palette; card: CardPayload }) {
   const saved = useIsSaved(card.id);
   const scale = useSharedValue(1);
+  const target = useTourTarget("save");
   const style = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
 
   const onPress = () => {
     const nowSaved = toggleSaved(card);
+    tourEmit("saveToggled", card.id);
     if (nowSaved) {
       scale.value = withSequence(withTiming(1.25, { duration: 90 }), withSpring(1, { damping: 9, stiffness: 260 }));
       void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -32,6 +35,7 @@ export function SaveButton({ palette, card }: { palette: Palette; card: CardPayl
 
   return (
     <Pressable
+      ref={target}
       onPress={onPress}
       hitSlop={SLOP}
       accessibilityRole="button"

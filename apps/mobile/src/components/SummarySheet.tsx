@@ -12,10 +12,11 @@ type Props = {
   // The summary is the one written when this Event joined the Story.
   eventId: string;
   eventAt: string;
+  note?: string;
   onClose: () => void;
 };
 
-export function SummarySheet({ palette, visible, storyId, eventId, eventAt, onClose }: Props) {
+export function SummarySheet({ palette, visible, storyId, eventId, eventAt, note, onClose }: Props) {
   const summary = useSummary(storyId, eventId, visible);
 
   let content;
@@ -46,7 +47,7 @@ export function SummarySheet({ palette, visible, storyId, eventId, eventAt, onCl
     );
 
   return (
-    <Sheet palette={palette} visible={visible} title="Story so far" onClose={onClose}>
+    <Sheet palette={palette} visible={visible} title="Story so far" note={note} onClose={onClose}>
       {content}
     </Sheet>
   );

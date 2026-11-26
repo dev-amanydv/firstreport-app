@@ -13,6 +13,7 @@ import {
   BellIcon,
   BookmarkIcon,
   ChevronIcon,
+  CompassIcon,
   ContrastIcon,
   DocumentIcon,
   PersonIcon,
@@ -79,6 +80,7 @@ export default function Account() {
         </Section>
 
         <Section palette={palette} label="About">
+          <Row palette={palette} icon={CompassIcon} label="Replay the tour" onPress={() => router.push("/tour")} />
           <LegalRow palette={palette} icon={ShieldIcon} label="Privacy policy" url={LEGAL.privacyUrl} />
           <LegalRow palette={palette} icon={DocumentIcon} label="Terms of use" url={LEGAL.termsUrl} />
           <Row palette={palette} label={`Version ${VERSION}`} muted />
