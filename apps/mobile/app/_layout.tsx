@@ -11,6 +11,7 @@ import * as SystemUI from "expo-system-ui";
 import { loadSession } from "../src/auth/session";
 import { loadCardsSeen } from "../src/authPrompt";
 import { loadHintCount } from "../src/hints";
+import { loadSaved } from "../src/saved";
 import { dark, fonts } from "../src/theme/tokens";
 import { loadAppearance, usePalette } from "../src/theme/useTheme";
 
@@ -19,6 +20,7 @@ void SplashScreen.preventAutoHideAsync();
 void loadHintCount();
 void loadCardsSeen();
 void loadSession();
+void loadSaved();
 const appearanceReady = loadAppearance();
 
 const queryClient = new QueryClient({

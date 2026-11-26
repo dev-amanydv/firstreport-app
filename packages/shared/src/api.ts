@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { SAVED_MAX } from "./config.js";
 
 // Public API payloads, shared by apps/api and the mobile app.
 
@@ -96,3 +97,18 @@ export type Explore = z.infer<typeof exploreSchema>;
 
 export const searchResultSchema = z.object({ items: z.array(exploreEventSchema) });
 export type SearchResult = z.infer<typeof searchResultSchema>;
+
+// Saved stories. The phone keeps the same rows, so the Saved list shows offline and before sign-in.
+export const savedItemSchema = exploreEventSchema.extend({ savedAt: z.iso.datetime({ offset: true }) });
+export type SavedItem = z.infer<typeof savedItemSchema>;
+
+export const savedListSchema = z.object({ items: z.array(savedItemSchema) });
+export type SavedList = z.infer<typeof savedListSchema>;
+
+// POST /v1/saved adds these (one tap, or everything saved on the phone at sign-in) and answers with the full list.
+export const saveRequestSchema = z.object({
+  items: z
+    .array(z.object({ eventId: z.uuid(), savedAt: z.iso.datetime({ offset: true }) }))
+    .min(1)
+    .max(SAVED_MAX),
+});

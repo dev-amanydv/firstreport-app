@@ -8,6 +8,7 @@ import {
   numeric,
   pgEnum,
   pgTable,
+  primaryKey,
   text,
   timestamp,
   uniqueIndex,
@@ -204,4 +205,20 @@ export const sessions = pgTable(
     lastUsedAt: tz("last_used_at").notNull().defaultNow(),
   },
   (t) => [index("sessions_user_id_idx").on(t.userId)],
+);
+
+// Saved stories of signed-in readers. Signed-out readers keep theirs only on the phone.
+// Deleting the user (or, never in practice, the Event) deletes the rows.
+export const savedEvents = pgTable(
+  "saved_events",
+  {
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    eventId: uuid("event_id")
+      .notNull()
+      .references(() => events.id, { onDelete: "cascade" }),
+    savedAt: tz("saved_at").notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.eventId] }), index("saved_events_user_saved_at_idx").on(t.userId, t.savedAt)],
 );

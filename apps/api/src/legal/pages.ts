@@ -1,7 +1,7 @@
 import { CONTACT_EMAIL, LEGAL_UPDATED } from "@fr/shared";
 
 // The privacy policy and terms of use, as plain static HTML. Everything here describes what the code does
-// today: when a feature adds data collection (Sentry, saved stories, analytics), update these pages first.
+// today: when a feature adds data collection (Sentry, analytics), update these pages first.
 
 const mail = `<a href="mailto:${CONTACT_EMAIL}">${CONTACT_EMAIL}</a>`;
 
@@ -55,7 +55,7 @@ with India's Digital Personal Data Protection Act, 2023 in mind.</p>
 
 <div class="box"><strong>In short:</strong> you can read FirstReport without an account, and then we hold no
 personal information about you on our servers. If you choose to sign in with Google, we store your name, email
-address and profile photo until you delete your account. We do not sell your data, show ads, or use analytics or
+address, profile photo and the stories you save until you delete your account. We do not sell your data, show ads, or use analytics or
 tracking tools.</div>
 
 <h2>1. Reading without an account</h2>
@@ -69,17 +69,22 @@ to a person.</p>
 <ul>
   <li>your Google account ID, email address, name and profile photo link;</li>
   <li>when your account was created and when you last signed in;</li>
-  <li>a session record so you stay signed in. We store only a scrambled (hashed) form of your session key.</li>
+  <li>a session record so you stay signed in. We store only a scrambled (hashed) form of your session key;</li>
+  <li>the stories you choose to save, and when you saved them. Stories you saved on the phone before signing in
+  are added to your account when you sign in.</li>
 </ul>
-<p>We use this to keep you signed in and to show your profile on the Account page. We may also use your email
+<p>We use this to keep you signed in, to show your profile on the Account page, and to show your saved stories on
+any phone you sign in on. We do not use your saved stories for anything else. We may also use your email
 address to tell you about important changes to FirstReport, such as new features for signed-in readers. We do not
 receive your Google password. Google's handling of your data is covered by
 <a href="https://policies.google.com/privacy">Google's privacy policy</a>.</p>
 
 <h2>3. What stays on your phone</h2>
 <p>The app keeps a few things only on your device: your appearance setting (light, dark or system), your recent
-searches, a count of cards you have seen (used to decide when to offer sign-in) and, if you sign in, your session
-key in the phone's secure storage. These are not sent to us. Uninstalling the app removes them.</p>
+searches, a count of cards you have seen (used to decide when to offer sign-in), the stories you save and, if you
+sign in, your session key in the phone's secure storage. These are not sent to us, except that saved stories are
+copied to your account if you sign in. Signing out removes the saved stories from the phone (they stay on your
+account). Uninstalling the app removes all of these.</p>
 
 <h2>4. Other services the app connects to</h2>
 <ul>
@@ -98,7 +103,8 @@ key in the phone's secure storage. These are not sent to us. Uninstalling the ap
 <ul>
   <li>We do not sell, rent or trade personal information.</li>
   <li>We do not show advertising or use advertising identifiers.</li>
-  <li>We do not use analytics or tracking tools, and we do not build a profile of what you read on our servers.</li>
+  <li>We do not use analytics or tracking tools, and we do not build a profile of what you read on our servers.
+  The only reading information we hold is the list of stories you chose to save, if you are signed in.</li>
 </ul>
 
 <h2>6. How long we keep information</h2>
@@ -107,7 +113,7 @@ needed to run the service securely and fix problems. Copies in backups are remov
 
 <h2 id="delete-account">7. Deleting your account</h2>
 <p>You can delete your account at any time in the app: <strong>Account → Delete account</strong>. This removes
-your account and signs you out on every device straight away. You can also ask us to delete it by emailing ${mail}
+your account and your saved stories, and signs you out on every device straight away. You can also ask us to delete it by emailing ${mail}
 from the email address on your account. We will do so within 30 days and confirm by email.</p>
 
 <h2>8. Your rights</h2>

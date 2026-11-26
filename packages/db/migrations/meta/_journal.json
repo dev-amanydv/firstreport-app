@@ -43,6 +43,13 @@
       "when": 1795671792146,
       "tag": "0005_events_search_doc",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1795676636583,
+      "tag": "0006_saved_events",
+      "breakpoints": true
     }
   ]
 }

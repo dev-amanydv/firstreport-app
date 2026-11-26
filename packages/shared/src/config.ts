@@ -170,3 +170,7 @@ export const AUTH_PROMPT_AT = [3, 5, 7];
 export const AUTH_PROMPT_EVERY = 7;
 // Bytes of randomness in a session token.
 export const SESSION_TOKEN_BYTES = 32;
+
+// Saved stories: kept on the phone for everyone, and on the account once signed in. At most this many;
+// saving past it drops the oldest.
+export const SAVED_MAX = 500;

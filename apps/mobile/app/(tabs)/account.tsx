@@ -25,6 +25,7 @@ import { Sheet } from "../../src/components/Sheet";
 import { Bone, Shimmer } from "../../src/components/Skeleton";
 import type { AppearanceChoice } from "../../src/lib/appearance";
 import { initials } from "../../src/lib/sources";
+import { useSaved } from "../../src/saved";
 import { fonts, metrics, type Palette } from "../../src/theme/tokens";
 import { setAppearance, useAppearance, usePalette } from "../../src/theme/useTheme";
 
@@ -39,6 +40,7 @@ export default function Account() {
   const session = useSession();
   const appearance = useAppearance();
   const [picker, setPicker] = useState(false);
+  const saved = useSaved();
   const signedIn = session.status === "signedIn";
 
   return (
@@ -57,7 +59,13 @@ export default function Account() {
         )}
 
         <Section palette={palette} label="Your reading">
-          <Row palette={palette} icon={BookmarkIcon} label="Saved stories" soon />
+          <Row
+            palette={palette}
+            icon={BookmarkIcon}
+            label="Saved stories"
+            value={saved.length ? String(saved.length) : undefined}
+            onPress={() => router.push("/saved")}
+          />
           <Row palette={palette} icon={BellIcon} label="Followed stories" soon />
         </Section>
 
@@ -226,7 +234,7 @@ function AccountActions({ palette }: { palette: Palette }) {
   const confirmDelete = () =>
     Alert.alert(
       "Delete your account?",
-      "Your FirstReport account and sign-in are removed for good. You can keep reading without one.",
+      "Your FirstReport account, sign-in and saved stories are removed for good. You can keep reading without one.",
       [
         { text: "Cancel", style: "cancel" },
         {

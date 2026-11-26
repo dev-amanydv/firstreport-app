@@ -13,7 +13,7 @@ The full product and engineering brief is in [`CLAUDE.md`](CLAUDE.md).
 | M3 Cards                                         | ✅ prompt v2 (perspectives); v3 facts-only while they are paused                       |
 | M4 Stories, summaries, nightly job, budget brake | ✅ (R2 backup and alert webhook moved to M7)                                         |
 | M5 API + admin                                   | ✅ built; gate pending (7 days unattended under $1.50/day)                           |
-| M6 Mobile app                                    | in progress: home screen, History, Story so far, optional Google sign-in (M6b), Account page and Appearance built |
+| M6 Mobile app                                    | in progress: home screen, History, Story so far, optional Google sign-in (M6b), Account page, Appearance and saved stories built |
 | M7 Hardening, M8 Closed beta                     | not started                                                                          |
 
 ## Repo layout
@@ -322,7 +322,10 @@ Per user, `Cache-Control: private, no-store` (a separate Fastify plugin, so the 
 | `POST /v1/auth/google`     | `{ idToken }` → `{ token, user }`; 401 for a token Google rejects, 503 while not configured |
 | `GET /v1/me`               | The signed-in user (`Authorization: Bearer <token>`), or 401                                  |
 | `POST /v1/auth/signout`    | Ends that session                                                                            |
-| `DELETE /v1/account`       | Deletes the user and all its sessions                                                       |
+| `DELETE /v1/account`       | Deletes the user, all its sessions and its saved stories                                    |
+| `GET /v1/saved`            | The user's saved stories, newest save first (a merged Event shows as its survivor)          |
+| `POST /v1/saved`           | `{ items: [{ eventId, savedAt }] }` adds saves (one tap, or the phone's list at sign-in); answers with the full list |
+| `DELETE /v1/saved/:eventId` | Unsaves                                                                                     |
 
 The admin at `/admin` uses HTTP basic auth (`ADMIN_USER`/`ADMIN_PASSWORD`; it is off when they are unset). It has Events (hide, unhide, regenerate, flip contested, merge, move to Story), Stories (rename, merge), Sources (toggle) and a 30-day cost page. Regenerate and "make contested" queue a pg-boss `regen` job that the worker runs between ticks, so the API never calls Gemini. Forms are only accepted from the admin's own origin.
 
@@ -339,6 +342,10 @@ To turn it on:
 3. Rebuild the development build (step 7b) and restart Metro with `--clear`.
 
 The terms and privacy links in the popup's fine print (and the Privacy policy and Terms rows on the Account page, which read "Soon" until then) are plain text until `LEGAL` in `apps/mobile/src/auth/copy.ts` gets URLs (M7). The popup's and Account page's words are in `COPY` in the same file.
+
+## Saved stories
+
+Every card has a bookmark at the end of its byline (age · outlet logos · bookmark), outside the tap areas that open the action bar. Saves are kept on the phone for everyone (`apps/mobile/src/saved.ts`, AsyncStorage), so saving works signed out and offline. Once signed in, the phone uploads what it has (`POST /v1/saved`) and from then on keeps in step with the account (`saved_events` table): changes not yet sent wait in `toAdd`/`toRemove` and go on the next tap, app start, sign-in or visit to the Saved screen. Signing out or deleting the account clears the phone's copy. At most `SAVED_MAX` (500); past it the oldest go. The list is under Account → Saved stories; press and hold a row to remove it.
 
 ## Mobile app
 

@@ -1,8 +1,10 @@
 import { createHash, randomBytes } from "node:crypto";
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import { eq, sessions, sql, users, type Db } from "@fr/db";
-import { googleSignInRequestSchema, SESSION_TOKEN_BYTES, type User } from "@fr/shared";
+import { googleSignInRequestSchema, saveRequestSchema, SESSION_TOKEN_BYTES, type User } from "@fr/shared";
+import { z } from "zod";
 import type { GoogleVerifier } from "./google.js";
+import { addSaved, removeSaved, savedList } from "./saved.js";
 
 const hashToken = (token: string) => createHash("sha256").update(token).digest("hex");
 
@@ -69,6 +71,29 @@ export async function authRoutes(app: FastifyInstance, { db, verifyGoogle }: { d
     const session = await sessionUser(request);
     if (!session) return reply.code(401).send({ error: "not signed in" });
     await db.delete(users).where(eq(users.id, session.user.id));
+    return reply.code(204).send();
+  });
+
+  // Saved stories. The phone keeps its own copy and calls these once signed in (see apps/mobile/src/saved.ts).
+  app.get("/saved", async (request, reply) => {
+    const session = await sessionUser(request);
+    if (!session) return reply.code(401).send({ error: "not signed in" });
+    return savedList(db, session.user.id);
+  });
+
+  app.post("/saved", async (request, reply) => {
+    const session = await sessionUser(request);
+    if (!session) return reply.code(401).send({ error: "not signed in" });
+    const { items } = saveRequestSchema.parse(request.body);
+    await addSaved(db, session.user.id, items);
+    return savedList(db, session.user.id);
+  });
+
+  app.delete("/saved/:eventId", async (request, reply) => {
+    const session = await sessionUser(request);
+    if (!session) return reply.code(401).send({ error: "not signed in" });
+    const { eventId } = z.object({ eventId: z.uuid() }).parse(request.params);
+    await removeSaved(db, session.user.id, eventId);
     return reply.code(204).send();
   });
 }

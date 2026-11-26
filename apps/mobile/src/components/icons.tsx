@@ -111,9 +111,10 @@ export function CheckIcon({ color, size = 28 }: IconProps) {
 }
 
 // Account page rows: same 24-grid line style.
-export function BookmarkIcon({ color, size = 22 }: IconProps) {
+// Filled once the card is saved.
+export function BookmarkIcon({ color, size = 22, filled = false }: IconProps & { filled?: boolean }) {
   return (
-    <Svg width={size} height={size} viewBox="0 0 24 24" {...stroke(color)}>
+    <Svg width={size} height={size} viewBox="0 0 24 24" {...stroke(color)} fill={filled ? color : "none"}>
       <Path d="M6 3.5h12v17l-6-4.25-6 4.25z" />
     </Svg>
   );

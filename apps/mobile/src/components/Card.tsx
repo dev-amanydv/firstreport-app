@@ -12,6 +12,7 @@ import { ActionBar } from "./ActionBar";
 import { CardImage } from "./CardImage";
 import { HistorySheet } from "./HistorySheet";
 import { Perspective, type Pane } from "./Perspective";
+import { SaveButton } from "./SaveButton";
 import { ShareCard } from "./ShareCard";
 import { SourceLogos } from "./SourceLogos";
 import { SummarySheet } from "./SummarySheet";
@@ -57,7 +58,9 @@ export const Card = memo(function Card({ card, palette, width, height, progress,
   }, [active, contested, hint]);
 
   const toggleActions = () => setActionsVisible((visible) => !visible);
-  const tap = useTapGesture({ maxDistance: TAP_SLOP.maxDistance, maxDuration: TAP_SLOP.maxDuration, runOnJS: true, onActivate: toggleActions });
+  const tapConfig = { maxDistance: TAP_SLOP.maxDistance, maxDuration: TAP_SLOP.maxDuration, runOnJS: true, onActivate: toggleActions };
+  const tap = useTapGesture(tapConfig);
+  const bylineTap = useTapGesture(tapConfig);
 
   const texts = { neutral: card.neutral, left: card.left ?? card.neutral, right: card.right ?? card.neutral };
   const source = card.sources[0];
@@ -94,13 +97,20 @@ export const Card = memo(function Card({ card, palette, width, height, progress,
             >
               {card.headline}
             </Text>
-            <View style={styles.byline}>
-              <Text style={[styles.date, { color: palette.muted }]}>{relativeTime(card.firstSeenAt)}</Text>
-              <SourceLogos palette={palette} sources={card.sources} />
-            </View>
           </View>
         </View>
       </GestureDetector>
+
+      {/* The bookmark sits outside the tap areas, so saving never also opens the action bar. */}
+      <View style={styles.byline}>
+        <GestureDetector gesture={bylineTap}>
+          <View style={styles.bylineText} collapsable={false}>
+            <Text style={[styles.date, { color: palette.muted }]}>{relativeTime(card.firstSeenAt)}</Text>
+            <SourceLogos palette={palette} sources={card.sources} />
+          </View>
+        </GestureDetector>
+        <SaveButton palette={palette} card={card} />
+      </View>
 
       <View style={styles.body}>
         <Perspective
@@ -166,7 +176,9 @@ const styles = StyleSheet.create({
     letterSpacing: -0.39,
     includeFontPadding: false,
   },
-  byline: { marginTop: 8, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
+  // The headline's tap area ends at its last line; the byline's own starts right below it.
+  byline: { paddingTop: 8, paddingHorizontal: CONTENT_PADDING, flexDirection: "row", alignItems: "center", gap: 14 },
+  bylineText: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
   date: { fontFamily: fonts.medium, fontSize: 12, lineHeight: 16, includeFontPadding: false },
   body: { flex: 1, paddingHorizontal: CONTENT_PADDING },
 });

@@ -74,6 +74,10 @@ function subscribe(listener: () => void) {
   return () => listeners.delete(listener);
 }
 
+// For stores that follow the session (saved stories): null when signed out, undefined while loading.
+export const sessionToken = () => (current === undefined ? undefined : (current?.token ?? null));
+export const subscribeSession = subscribe;
+
 // "loading" until the keystore has been read; never prompt for sign-in before then.
 export function useSession(): { status: "loading" } | { status: "signedOut" } | { status: "signedIn"; user: User } {
   const session = useSyncExternalStore(subscribe, () => current);

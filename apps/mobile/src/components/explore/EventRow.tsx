@@ -12,14 +12,19 @@ type Props = {
   // The place in a ranked list.
   rank?: number;
   onOpen: (id: string) => void;
+  // Saved stories: press and hold to remove.
+  onLongPress?: () => void;
 };
 
-// One card as a list row: thumbnail, headline, age. Used by Most covered and by search results.
-export function EventRow({ palette, event, note, rank, onOpen }: Props) {
+// One card as a list row: thumbnail, headline, age. Used by Most covered, search results and Saved stories.
+export function EventRow({ palette, event, note, rank, onOpen, onLongPress }: Props) {
   const meta = [note, relativeTime(event.firstSeenAt)].filter(Boolean).join(" · ");
   return (
     <Pressable
       onPress={() => onOpen(event.id)}
+      onLongPress={onLongPress}
+      accessibilityActions={onLongPress ? [{ name: "longpress", label: "Remove from saved stories" }] : undefined}
+      onAccessibilityAction={(e) => e.nativeEvent.actionName === "longpress" && onLongPress?.()}
       accessibilityRole="button"
       accessibilityLabel={`${rank ? `${rank}. ` : ""}${event.headline}. ${meta}`}
       style={({ pressed }) => [styles.row, pressed && { opacity: 0.5 }]}

@@ -1,19 +1,27 @@
-// Words for the sign-in box and the Account screen. Saved stories and personalised news are not built
-// yet, so the copy promises early access, never features that exist today.
+// Words for the sign-in box, the Account screen and Saved stories. Saved stories exist (on the phone for
+// everyone, on the account once signed in); personalised news is not built, so it is only promised early.
 export const COPY = {
   headline: "Make FirstReport yours",
-  body: "Sign in once. Saved stories and news picked for you arrive first for signed-in readers.",
+  body: "Sign in once to keep your saved stories on every phone, and be first to get news picked for you.",
   button: "Continue with Google",
   notNow: "Not now",
   welcome: (firstName: string | null) => (firstName ? `You're in, ${firstName}.` : "You're in."),
-  welcomeBody: "We'll let you know as soon as saved stories arrive.",
+  welcomeBody: "Your saved stories now stay with your account.",
   account: {
     signedOutTitle: "Not signed in",
-    signedOutBody: "Log in to be first to get saved stories and news picked for you.",
+    signedOutBody: "Log in to keep saved stories on every phone and be first to get news picked for you.",
     logIn: "Log in",
     signUp: "Sign up",
     viaGoogle: "Continues with your Google account",
     soon: "Soon",
+  },
+  saved: {
+    emptyTitle: "No saved stories yet",
+    emptyBody: "Tap the bookmark on any card to keep it here.",
+    phoneOnly: "Saved on this phone only. Log in to keep them on every phone.",
+    holdToRemove: "press and hold to remove",
+    removeTitle: "Remove from saved?",
+    remove: "Remove",
   },
   errors: {
     "not-configured": "Sign-in isn't set up yet.",
