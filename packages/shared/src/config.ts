@@ -105,6 +105,15 @@ export const LABEL_TARGET_PRECISION = 0.95;
 export const LABEL_TARGET_RECALL = 0.95;
 
 export const MAX_NEW_ARTICLES_PER_DAY = 250;
+
+// Step 1b: one Flash-Lite call sorts up to TRIAGE_BATCH new headlines into hard news (kept) and soft news (skipped).
+// On the free tier it waits for TRIAGE_MIN_BATCH headlines or for the oldest to wait TRIAGE_FLUSH_MINUTES, to save
+// requests; paid, it runs every tick. Articles still untriaged after TRIAGE_MAX_WAIT_MINUTES are kept unread,
+// so a Gemini outage never loses breaking news.
+export const TRIAGE_BATCH = 50;
+export const TRIAGE_MIN_BATCH = { free: 10, paid: 1 };
+export const TRIAGE_FLUSH_MINUTES = { free: 10, paid: 0 };
+export const TRIAGE_MAX_WAIT_MINUTES = 20;
 export const EVENT_ASK_MAX_WAIT_HOURS = 2;
 
 export const CARD_MODEL = TEXT_MODEL;
@@ -185,6 +194,10 @@ export const SEARCH_LIMIT_MAX = 50;
 // show nothing about perspectives. Read at call time so tests can flip it.
 export function perspectivesEnabled() {
   return process.env.PERSPECTIVES_ENABLED === "true";
+}
+// Dev runs on the Gemini free tier unless GEMINI_FREE_TIER=false, which production sets. Read at call time.
+export function geminiFreeTier() {
+  return process.env.GEMINI_FREE_TIER !== "false";
 }
 export const MIN_APP_VERSION = "1.0.0";
 

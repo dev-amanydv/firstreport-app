@@ -45,6 +45,7 @@ export const llmPurpose = pgEnum("llm_purpose", [
   "story_link",
   "summary",
   "material_change",
+  "triage",
 ]);
 export const adminActionType = pgEnum("admin_action_type", [
   "hide",
@@ -137,6 +138,8 @@ export const articles = pgTable(
     embedding: vector("embedding", { dimensions: EMBEDDING_DIMENSIONS }),
     eventId: uuid("event_id").references(() => events.id),
     status: articleStatus("status").notNull().default("new"),
+    // Set by step 1b (hard-news triage), kept or not; only triaged articles are embedded.
+    triagedAt: tz("triaged_at"),
   },
   (t) => [
     uniqueIndex("articles_source_canonical_url_key").on(t.sourceId, t.canonicalUrl),

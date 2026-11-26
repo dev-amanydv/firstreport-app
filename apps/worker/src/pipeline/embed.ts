@@ -1,4 +1,4 @@
-import { articles, asc, eq, isNull, refreshEvent, type Db } from "@fr/db";
+import { and, articles, asc, eq, isNotNull, isNull, ne, refreshEvent, type Db } from "@fr/db";
 import { EMBED_BATCH_SIZE } from "@fr/shared";
 import type { Gemini } from "../gemini/client.js";
 
@@ -10,7 +10,8 @@ export async function embedArticles(db: Db, gemini: Gemini) {
     const batch = await db
       .select({ id: articles.id, title: articles.title, lede: articles.lede, eventId: articles.eventId })
       .from(articles)
-      .where(isNull(articles.embedding))
+      // Only triaged hard news; skipped articles are never embedded.
+      .where(and(isNull(articles.embedding), isNotNull(articles.triagedAt), ne(articles.status, "skipped")))
       .orderBy(asc(articles.publishedAt))
       .limit(EMBED_BATCH_SIZE);
     if (batch.length === 0) break;

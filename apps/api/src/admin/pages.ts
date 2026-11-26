@@ -24,6 +24,7 @@ import {
   DAILY_BUDGET_HARD,
   DAILY_BUDGET_SOFT,
   FREE_TIER_DAILY_REQUESTS,
+  geminiFreeTier,
   perspectivesEnabled,
   TIMEZONE,
 } from "@fr/shared";
@@ -313,7 +314,7 @@ export async function pageRoutes(app: FastifyInstance, { db }: AdminDeps) {
       .where(gte(llmCalls.createdAt, startOfToday()))
       .groupBy(llmCalls.model);
     const spentToday = today.reduce((sum, row) => sum + row.cost, 0);
-    const freeTier = process.env.GEMINI_FREE_TIER !== "false";
+    const freeTier = geminiFreeTier();
 
     const totals = new Map<string, number>();
     for (const row of days) totals.set(row.day, (totals.get(row.day) ?? 0) + row.cost);

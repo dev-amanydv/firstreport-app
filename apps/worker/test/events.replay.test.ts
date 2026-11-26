@@ -41,6 +41,7 @@ async function addArticle(sourceIndex: number, title: string, embedding: number[
       contentHash: `hash-${minute}`,
       publishedAt: new Date(Date.now() - (100 - minute) * 60_000),
       fetchedAt,
+      triagedAt: fetchedAt,
       embedding,
     })
     .returning({ id: articles.id });

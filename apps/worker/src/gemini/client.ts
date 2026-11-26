@@ -4,6 +4,7 @@ import { and, count, eq, gte, llmCalls, startOfToday, sql, type Db } from "@fr/d
 import {
   EMBED_MODEL,
   FREE_TIER_DAILY_REQUESTS,
+  geminiFreeTier,
   EMBED_TASK_PREFIX,
   EMBEDDING_DIMENSIONS,
   GEMINI_BASE_DELAY_MS,
@@ -138,7 +139,7 @@ export async function requestsToday(db: Db, model: string) {
 
 // Caps are on unless GEMINI_FREE_TIER=false, which production sets.
 export function dailyRequestCapsFromEnv() {
-  return process.env.GEMINI_FREE_TIER === "false" ? {} : FREE_TIER_DAILY_REQUESTS;
+  return geminiFreeTier() ? FREE_TIER_DAILY_REQUESTS : {};
 }
 
 export async function spentToday(db: Db) {

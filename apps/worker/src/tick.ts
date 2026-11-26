@@ -5,6 +5,7 @@ import { ingestSource } from "./ingest/ingestSource.js";
 import { assignArticles } from "./pipeline/assignEvents.js";
 import { budgetBrake } from "./pipeline/budget.js";
 import { embedArticles } from "./pipeline/embed.js";
+import { triageArticles } from "./pipeline/triage.js";
 import { linkStories } from "./pipeline/linkStories.js";
 import { checkMaterialChanges } from "./pipeline/materialChanges.js";
 import { updateSummaries } from "./pipeline/updateSummaries.js";
@@ -42,6 +43,7 @@ async function runStep<T>(name: string, step: () => Promise<T>) {
 async function runSteps(db: Db, { dryRun, gemini, maxNewArticlesPerDay = MAX_NEW_ARTICLES_PER_DAY }: TickOptions) {
   const startedAt = new Date();
   const ingest = await ingestAll(db, dryRun, maxNewArticlesPerDay);
+  let triage = null;
   let embed = null;
   let assign = null;
   let cards = null;
@@ -54,6 +56,7 @@ async function runSteps(db: Db, { dryRun, gemini, maxNewArticlesPerDay = MAX_NEW
   } else if (!gemini) {
     console.log("GEMINI_API_KEY is not set: Gemini steps skipped");
   } else {
+    triage = await runStep("triage", () => triageArticles(db, gemini));
     embed = await runStep("embed", () => embedArticles(db, gemini));
     assign = await runStep("assign", () => assignArticles(db, gemini));
     const brake = await budgetBrake(db, dailyRequestCapsFromEnv());
@@ -65,7 +68,7 @@ async function runSteps(db: Db, { dryRun, gemini, maxNewArticlesPerDay = MAX_NEW
   }
 
   console.log(`tick finished in ${((Date.now() - startedAt.getTime()) / 1000).toFixed(1)}s`);
-  return { ingest, embed, assign, cards, stories, summaries, material };
+  return { ingest, triage, embed, assign, cards, stories, summaries, material };
 }
 
 export async function runTick({ db, client }: Database, options: TickOptions) {
