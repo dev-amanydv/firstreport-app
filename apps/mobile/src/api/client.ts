@@ -2,7 +2,7 @@ import { appConfigSchema, cardPayloadSchema, exploreSchema, feedSchema, SEARCH_Q
 import { keepPreviousData, useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import type { z } from "zod";
 
-const BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL ?? "http://localhost:3000";
+const BASE_URL = (process.env.EXPO_PUBLIC_API_BASE_URL ?? "http://localhost:3000").replace(/\/+$/, "");
 const PAGE_SIZE = 20;
 
 export class HttpError extends Error {
