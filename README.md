@@ -20,7 +20,7 @@ The full product and engineering brief is in [`CLAUDE.md`](CLAUDE.md).
 
 ```
 apps/worker          ingestion + AI pipeline, run by pg-boss
-  src/tick.ts          one 15-minute tick (steps 1–12)
+  src/tick.ts          one 5-minute tick (steps 1–12)
   src/nightly.ts       02:30 IST job: twin merge, body purge, dormant Stories, alerts
   src/start.ts         long-running worker: schedules tick + nightly with pg-boss
   src/ingest/          feed fetch (conditional GET), page extraction, URL normalisation, filters
@@ -55,7 +55,7 @@ This walks through the whole stack on one Mac: Postgres in Docker, then the work
 | Terminal | Command                                           | Purpose                                                                   |
 | :------- | :------------------------------------------------ | :------------------------------------------------------------------------ |
 | 1        | `docker compose up -d` (runs in the background) | Postgres 16 + pgvector on `localhost:5432`                              |
-| 2        | `pnpm worker:start`                             | Pipeline: a tick every 15 min, nightly job at 02:30 IST, admin regen jobs |
+| 2        | `pnpm worker:start`                             | Pipeline: a tick every 5 min, nightly job at 02:30 IST, admin regen jobs   |
 | 3        | `pnpm api:start`                                | Public `/v1` API and `/admin` on `localhost:3000`                   |
 | 4        | `pnpm mobile`                                   | Expo / Metro bundler for the app                                          |
 
@@ -149,11 +149,11 @@ pnpm worker:tick --dry-run    # logs per-step counts, then "dry run: nothing wri
 Then fill the database by hand with two real ticks:
 
 ```sh
-pnpm worker:tick              # 1st: ingest → embed → assign articles to new Events (status collecting)
-pnpm worker:tick              # 2nd: Events from the 1st tick get cards → published → Stories → summaries
+pnpm worker:tick              # 1st: ingest → triage → embed → assign; Events covered by 2+ outlets get cards at once
+pnpm worker:tick              # 10+ minutes later: single-outlet Events have settled and get cards too
 ```
 
-Cards wait one tick on purpose (pipeline step 7), so the first tick never publishes anything. Each step logs a line like `cards: {...} in 4.2s`, and the tick ends with `tick finished in …s`. The first tick on an empty database takes a few minutes: it fetches every feed and, for thin RSS items, the article page (at most one request every 3 s per domain). Check what came out:
+Cards wait up to 10 minutes on purpose (pipeline step 7) so sibling articles can arrive; Events that 2 outlets already cover skip the wait. On the free tier the headline triage waits for 10 headlines or 10 minutes, so a first tick may embed nothing. Each tick also logs `triage: {kept, dropped, …}` and `freshness: … p50 … p90`. Each step logs a line like `cards: {...} in 4.2s`, and the tick ends with `tick finished in …s`. The first tick on an empty database takes a few minutes: it fetches every feed and, for thin RSS items, the article page (at most one request every 3 s per domain). Check what came out:
 
 ```sh
 docker compose exec postgres psql -U fr -c 'select status, count(*) from events group by 1'
@@ -167,7 +167,7 @@ pnpm worker:start             # "worker started, tick schedule: */15 * * * *, ni
 
 It ticks on every quarter hour, runs the nightly job at 02:30 IST, and runs admin regenerate jobs from the API. A manual `pnpm worker:tick` while it runs is safe: the advisory lock makes one of them log `tick already running, skipping`. Stop it with Ctrl-C.
 
-On the free tier the day's quota can run out. Look for `DailyQuotaReached` in the log, or check the cost page in the admin. Ingestion stops after 250 new articles per IST day, so later ticks that day may add nothing. Events older than 24 h are never carded or served, so a database left alone for a few days shows an empty feed until the worker runs again.
+On the free tier the day's quota can run out. Look for `DailyQuotaReached` in the log, or check the cost page in the admin. On the free tier, ingestion stops after 250 new articles per IST day and 20 per hour, so some ticks add nothing. Events older than 24 h are never carded or served, so a database left alone for a few days shows an empty feed until the worker runs again.
 
 ### 6. Run the API
 
@@ -184,7 +184,7 @@ curl -s 'localhost:3000/v1/feed?limit=2' | head -c 600 # published cards; "items
 curl -s localhost:3000/v1/categories
 ```
 
-Open the admin at http://localhost:3000/admin and ign in with `ADMIN_USER` / `ADMIN_PASSWORD`. It lists Events, Stories and Sources and has a 30-day cost page. Regenerate and "make contested" only queue a job, so the worker from step 5 must be running for them to take effect.
+Open the admin at http://localhost:3000/admin and ign in with `ADMIN_USER` / `ADMIN_PASSWORD`. It lists Events, Stories and Sources and has a 30-day cost page with freshness (minutes from an outlet publishing to our card, and each outlet's feed lag). Regenerate and "make contested" only queue a job, so the worker from step 5 must be running for them to take effect.
 
 ### 7. Run the mobile app
 
@@ -284,7 +284,7 @@ The containers read the same root `.env`, but compose points `DATABASE_URL` at t
 | :-------------------------------------------------- | :------------------------------------------------------------------------------------------------ |
 | `pnpm worker:tick --dry-run`                      | Fetch and parse feeds, write nothing, skip the Gemini steps                                       |
 | `pnpm worker:tick`                                | Run one full tick now                                                                             |
-| `pnpm worker:start`                               | Long-running worker: tick every 15 min, nightly at 02:30 IST                                      |
+| `pnpm worker:start`                               | Long-running worker: tick every 5 min, nightly at 02:30 IST                                       |
 | `pnpm api:start`                                  | API on port 3000: `/v1/*` and the admin at `/admin` (needs `ADMIN_USER`/`ADMIN_PASSWORD`) |
 | `pnpm mobile`                                     | Expo dev server for the app (see "Mobile app" below)                                              |
 | `pnpm worker:nightly`                             | Run the nightly job now (waits for a running tick)                                                |
@@ -328,7 +328,7 @@ Per user, `Cache-Control: private, no-store` (a separate Fastify plugin, so the 
 | `POST /v1/saved`           | `{ items: [{ eventId, savedAt }] }` adds saves (one tap, or the phone's list at sign-in); answers with the full list |
 | `DELETE /v1/saved/:eventId` | Unsaves                                                                                     |
 
-The admin at `/admin` uses HTTP basic auth (`ADMIN_USER`/`ADMIN_PASSWORD`; it is off when they are unset). It has Events (hide, unhide, regenerate, flip contested, merge, move to Story), Stories (rename, merge), Sources (toggle) and a 30-day cost page. Regenerate and "make contested" queue a pg-boss `regen` job that the worker runs between ticks, so the API never calls Gemini. Forms are only accepted from the admin's own origin.
+The admin at `/admin` uses HTTP basic auth (`ADMIN_USER`/`ADMIN_PASSWORD`; it is off when they are unset). It has Events (hide, unhide, regenerate, flip contested, merge, move to Story), Stories (rename, merge), Sources (toggle) and a 30-day cost page with freshness tables. Regenerate and "make contested" queue a pg-boss `regen` job that the worker runs between ticks, so the API never calls Gemini. Forms are only accepted from the admin's own origin.
 
 ## Sign-in (optional)
 
@@ -385,7 +385,8 @@ The budget brake skips rewrites above $1.50/day and pauses card writing above $3
 
 - Flash-Lite calls stop at 450 a day (`FREE_TIER_DAILY_REQUESTS`).
 - Material-change rewrites stop at 80% of that cap.
-- Ingestion is capped at 250 new articles a day (`MAX_NEW_ARTICLES_PER_DAY`).
+- Ingestion is capped at 250 new articles a day and 20 an hour (`MAX_NEW_ARTICLES_PER_DAY`, `MAX_NEW_ARTICLES_PER_HOUR`); production has no article cap.
+- The headline triage batches 10 headlines or waits 10 minutes; production triages every tick.
 
 Set `GEMINI_FREE_TIER=false` in production.
 

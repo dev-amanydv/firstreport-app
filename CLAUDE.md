@@ -9,7 +9,8 @@ You are the engineering partner on **FirstReport**, a mobile-first Indian news a
 - **Done:** M1 (ingest), M2 (embeddings + Events, thresholds tuned from labelled data), M3 (cards, prompt v2), M4 (Stories, summaries, material-change rewrites, budget brake, nightly job). M5 is built (`apps/api`: public `/v1` API, admin, cost page), and the worker and API run under Docker Compose (`--profile app`).
 - **In progress:** M6. The home screen and the History and Story-so-far sheets are built in `apps/mobile` (Expo SDK 58), following the design in `packages/designs`. **M6b (optional Google sign-in) is built**: the centred sign-in popup after cards 3, 5, 7 then every 7th, the settings-style Account page (Log in / Sign up or the profile, Appearance System/Light/Dark, Sign out, Delete account), and `/v1/auth/*`; the Google client IDs are `REPLACE_ME` placeholders until the developer adds them. **Privacy policy and terms** are served at `/privacy` and `/terms` (2026-11-26). **Explore is built** (2026-11-26): search, trending topics, developing stories (opening a Story screen) and most covered today, from `/v1/explore` and `/v1/search`, with no extra Gemini calls. **Saved stories are built** (2026-11-26): a bookmark at the end of each card's byline, kept on the phone for everyone and synced to the account once signed in (`saved_events`, `/v1/saved`), listed under Account → Saved stories. **The onboarding tour is built** (2026-11-26): on first launch a full-screen tour walks a new reader through a real developing card from `/v1/tour` (tap for actions, History, Story so far, Save, swipe up), then points at Explore; Account → About → Replay the tour. Still to do on Account: the About perspectives entry, only when `/v1/config.perspectives` is true. The M5 gate (7 days unattended under $1.50/day) still has to be run.
 - **Still open from M4:** the nightly `pg_dump` → R2 upload and the alert webhook are deferred to M7. Alerts are only logged (`ALERT:` lines) for now.
-- **Still yours:** the 13 `TODO` feed URLs in the seed.
+- **Faster, harder news (2026-11-26):** the tick runs every 5 minutes; a card is written once its Event has settled 10 minutes, or at once when 2 outlets cover it; a batched Gemini headline triage (step 1b) skips soft news (launches, reviews, lifestyle, gossip) before embedding; the article cap is free-tier only and paced hourly; the cost page shows freshness (report → card minutes) and each outlet's feed lag. Gadgets 360 is retired. Dev data so far says nothing about real lag, because the dev worker ran about once a day; read the cost page after the M5 gate run.
+- **Still yours:** the 13 `TODO` feed URLs in the seed, and hard-news section feeds (city, crime, politics) for the active outlets.
 - **Perspectives are paused** (2026-11-25). Left/right perspectives and the "contested" call are behind `PERSPECTIVES_ENABLED` (off unless `"true"`). While it is off, Gemini is asked for facts only (card prompt v3), the API sends no `contested`/`left`/`right` and no perspective keys in `/v1/config`, the admin has no perspective controls, and the app shows plain text with no tabs or labels. Everything about perspectives in this brief applies only while the switch is on.
 - **Dev runs on the Gemini free tier** (`GEMINI_FREE_TIER`, on unless set to `false`). That is why the code has daily request caps, a daily article cap and fewer seeded feeds. Production sets `GEMINI_FREE_TIER=false`. See §6, "Free-tier and cost guards".
 - Where the code differs from the original brief, the brief below has been updated to match the code. The reasons are in the commit messages.
@@ -46,7 +47,8 @@ FirstReport shows news as full-screen cards:
 | :---- | :---- |
 | Ingestion | **RSS first.** Fetch the article HTML page only when the RSS text is thin (\< \~60 words). No per-site HTML scrapers. |
 | Scale | 15–25 English-language Indian sources, \~1–2k articles/day, giving \~150–300 Events/day |
-| Freshness | Worker runs every **15 minutes**; new stories appear within \~30 min |
+| Freshness | Worker runs every **5 minutes** (changed 2026-11-26); breaking stories should appear within \~30 min of the outlet publishing, measured on the admin cost page |
+| Coverage | **Hard news only** (changed 2026-11-26): politics, crime, accidents, courts, economy, world, big sports results; Technology and Entertainment keep their tabs but only for hard news (outages, breaches, deaths, arrests). Soft news is dropped by URL/title rules, then by the step-1b Gemini triage |
 | AI provider | **Google Gemini only** (embeddings \+ text generation). No other paid AI. |
 | Perspectives | **Fully AI-generated** by Gemini from the Event's merged facts. Fact-locked: no facts, numbers or quotes beyond the sources. **Paused** behind `PERSPECTIVES_ENABLED` (default off). |
 | AI label | **Not shown at launch**, behind config flag `SHOW_AI_LABEL` (default `false`) |
@@ -80,7 +82,7 @@ FirstReport shows news as full-screen cards:
   packages/shared \# zod schemas, types, config constants shared by all apps  
     
 - **Database:** PostgreSQL 16 \+ `pgvector`. ORM: **drizzle**. Migrations are checked in.  
-- **Jobs:** `pg-boss` (Postgres-backed queue and cron). The 15-minute tick must never overlap itself: use a singleton job or a Postgres advisory lock.  
+- **Jobs:** `pg-boss` (Postgres-backed queue and cron). The 5-minute tick must never overlap itself: use a singleton job or a Postgres advisory lock.  
 - **RSS:** `rss-parser`, with conditional GET (send `If-None-Match` / `If-Modified-Since`, honour 304).  
 - **Article text:** `@mozilla/readability` \+ `jsdom`, only when the RSS text is thin.  
 - **Gemini:** the official `@google/genai` SDK. Use structured JSON output (`responseJsonSchema`, temperature 0, thinking budget 0). Keep all model IDs in config; **check the current model names in Google's docs** before hard-coding. Current values: embeddings `gemini-embedding-2` (outputDimensionality 768; it takes no `taskType`, so the task goes in a text prefix, `EMBED_TASK_PREFIX` = `"task: sentence similarity | query: "`); text and cards `gemini-3.1-flash-lite` (`TEXT_MODEL`, `CARD_MODEL`). Prices for `cost_usd` are in `MODEL_PRICES`.  
@@ -115,7 +117,7 @@ FirstReport shows news as full-screen cards:
 
 ## 5\. Data model (drizzle schema in `packages/db`)
 
-All ids are `uuid` (`defaultRandom()`). Migrations live in `packages/db/migrations` (`0000_enable_pgvector.sql` … `0006_saved_events.sql`; `0004_search_doc_fn.sql` is a custom migration from `drizzle-kit generate --custom`, because drizzle cannot declare SQL functions); change the schema with `pnpm db:generate`, never by hand-editing applied migrations.
+All ids are `uuid` (`defaultRandom()`). Migrations live in `packages/db/migrations` (`0000_enable_pgvector.sql` … `0007_triage.sql`; `0004_search_doc_fn.sql` is a custom migration from `drizzle-kit generate --custom`, because drizzle cannot declare SQL functions); change the schema with `pnpm db:generate`, never by hand-editing applied migrations.
 
 ### `sources` — filled by the developer (seed script / admin); lightly updated by the worker
 
@@ -150,7 +152,8 @@ All ids are `uuid` (`defaultRandom()`). Migrations live in `packages/db/migratio
 | published\_at, fetched\_at, updated\_at | timestamptz |  |
 | embedding | vector(768) null | step 4 |
 | event\_id | fk null | step 6; changed by nightly merge |
-| status | enum | `new` → `assigned`; or `skipped` (filtered) |
+| status | enum | `new` → `assigned`; or `skipped` (dropped by the step-1b triage) |
+| triaged\_at | timestamptz null | step 1b; only triaged, non-skipped articles are embedded |
 
 Unique constraints: `(source_id, canonical_url)`, `(source_id, guid)` where guid not null, `(source_id, content_hash)`. Exact repeats are rejected by these constraints (use `ON CONFLICT DO NOTHING`), **never stored twice**. **Same-site re-post / edited article:** do NOT insert a new row. Update the existing row in place (title, lede, hash, embedding, updated\_at), and mark its Event `needs_recheck = true`.
 
@@ -197,7 +200,7 @@ Unique constraints: `(source_id, canonical_url)`, `(source_id, guid)` where guid
 
 ### `llm_calls` — append-only, one row per Gemini call
 
-`id, purpose (embed | same_event | card | validate_retry | story_link | summary | material_change), model, input_tokens, output_tokens, cost_usd, latency_ms, ok, error, created_at`. Compute `cost_usd` from a price table in config.
+`id, purpose (embed | same_event | card | validate_retry | story_link | summary | material_change | triage), model, input_tokens, output_tokens, cost_usd, latency_ms, ok, error, created_at`. Compute `cost_usd` from a price table in config.
 
 ### `users` and `sessions` — optional sign-in (M6b)
 
@@ -218,9 +221,10 @@ Unique constraints: `(source_id, canonical_url)`, `(source_id, guid)` where guid
 
 ## 6\. The worker pipeline (`apps/worker`)
 
-One **tick** every 15 minutes (cron `*/15 * * * *` via pg-boss, non-overlapping). Each step logs counts. Every Gemini call goes through one wrapper that retries with exponential backoff on 429/5xx, writes an `llm_calls` row, and enforces the daily budget.
+One **tick** every 5 minutes (cron `*/5 * * * *` via pg-boss, non-overlapping). Each step logs counts. Every Gemini call goes through one wrapper that retries with exponential backoff on 429/5xx, writes an `llm_calls` row, and enforces the daily budget.
 
-1. **Fetch.** For each active source and feed URL, make a conditional GET. Parse items. Skip items matching filter patterns (URL contains `/live/`, `live-updates`, `/opinion/`, `/editorial/`, `/blogs/`; titles like "Top 10", "Morning brief", "Horoscope", "Gold rate today", "Daily quiz"; patterns live in config). Dedupe items across a source's feeds first, so one headline wins when an outlet lists the same article in several section feeds. Insert as `articles` with status `new`, stopping once `MAX_NEW_ARTICLES_PER_DAY` (250) articles have been inserted today (IST day).  
+1. **Fetch.** For each active source and feed URL, make a conditional GET. Parse items. Skip items matching filter patterns (`FILTERED_URL_PATTERNS` / `FILTERED_TITLE_PATTERNS` in config: live blogs, opinion, editorials, blogs, reviews, lifestyle, web stories, photos, video, astrology, recipes, how-tos, sponsored, trends, gadget sections; titles like "Top 10", "Horoscope", "Review:", "Price in India", "Best … under"). Dedupe items across a source's feeds first, so one headline wins when an outlet lists the same article in several section feeds. Insert as `articles` with status `new`, On the free tier only, stop once `MAX_NEW_ARTICLES_PER_DAY` (250) articles were inserted today (IST day) or `MAX_NEW_ARTICLES_PER_HOUR` (20) in the last hour; triage-skipped articles do not count. Production has no article cap.  
+1b. **Triage (hard news only).** One Flash-Lite call (`prompts/triage.ts`) takes up to `TRIAGE_BATCH` (50) untriaged headlines, newest first, each with its URL path, and answers keep/drop. Dropped articles become `skipped` and are never embedded or carded; missing answers count as keep. On a Gemini error they wait for the next tick, and after `TRIAGE_MAX_WAIT_MINUTES` (20) they are kept unread. On the free tier it waits for `TRIAGE_MIN_BATCH` (10) headlines or for one to wait `TRIAGE_FLUSH_MINUTES` (10); paid, it runs every tick.  
 2. **Dedupe by address.** Normalise the URL: lowercase host, drop `utm_*`/`fbclid`/`gclid`/`ref` params, `/amp` suffixes, `amp.`/`m.` subdomains, trailing slash, fragment. Unique constraints drop repeats.  
 3. **Extract \+ hash.** If the RSS text is \< 60 words, fetch the page (polite: ≤ 1 request every 3 s per domain, real User-Agent, respect robots.txt) and run Readability. Set `lede` (first \~2 paragraphs, max \~120 words) and `content_hash`. A duplicate hash for the same source is dropped.  
 4. **Embed.** Batch-embed `title + "\n" + lede` for new articles (up to 100 per request). Normalise and store.  
@@ -230,7 +234,7 @@ One **tick** every 15 minutes (cron `*/15 * * * *` via pg-boss, non-overlapping)
    - `EVENT_BORDER_LOW` (0.86) ≤ best \< 0.94: ask Gemini Flash-Lite "same real-world event? yes/no" with both titles \+ ledes. Yes → join; no → new Event. If the Gemini call fails, the article stays `new` and is retried on a later tick; after `EVENT_ASK_MAX_WAIT_HOURS` (2 h) it becomes its own Event  
    - best \< 0.86: create a new Event (`collecting`, centroid \= this embedding)  
    - On join: recompute the centroid, bump `article_count` and `last_article_at`; if the Event is already `published`, set `needs_recheck = true`.  
-7. **Wait one tick.** Only Events with status `collecting` **created before this tick started** move on to step 8\. This lets sibling articles arrive, so cards are written from several sources. At most `CARDS_PER_TICK` (40) per tick; Events whose `first_seen_at` is older than `CARD_MAX_AGE_HOURS` (24 h) are never carded or served.  
+7. **Settle.** A `collecting` Event moves on to step 8 once its `first_seen_at` is `CARD_SETTLE_MINUTES` (10) old, so sibling articles can arrive, or at once when articles from `CARD_FAST_SOURCES` (2) outlets already cover it (breaking news). Ready Events go most outlets first, then newest first, so a backlog delays old news. At most `CARDS_PER_TICK` (40) per tick; each tick logs `freshness:` p50/p90 minutes from the first report to the card; Events whose `first_seen_at` is older than `CARD_MAX_AGE_HOURS` (24 h) are never carded or served.  
 8. **Write the card.** One Gemini call per Event. Input: ledes of up to 5 member articles, one per source first, each capped at `CARD_LEDE_MAX_CHARS`. A Gemini error or the free-tier cap stops the step and leaves the rest `collecting` for the next tick. Output JSON:  
      
    {  
@@ -290,7 +294,8 @@ The tick holds a Postgres advisory lock (`TICK_LOCK_ID`) as well as running as a
 **Free-tier and cost guards (dev):** these are in the code and are not in the original brief.
 
 - `GEMINI_FREE_TIER` (on unless `"false"`): the wrapper refuses a call (`DailyQuotaReached`) once today's `llm_calls` count for a model reaches `FREE_TIER_DAILY_REQUESTS` (Flash-Lite: 450). Step 12 is also skipped once a model has used `FREE_TIER_SOFT_SHARE` (80%) of its cap.  
-- `MAX_NEW_ARTICLES_PER_DAY` (250) caps ingestion. The free tier embeds about 1,000 texts a day.  
+- `MAX_NEW_ARTICLES_PER_DAY` (250) and `MAX_NEW_ARTICLES_PER_HOUR` (20) cap ingestion, on the free tier only. The free tier embeds about 1,000 texts a day.  
+- Triage batches wait for 10 headlines or 10 minutes (`TRIAGE_MIN_BATCH` / `TRIAGE_FLUSH_MINUTES`), about 100–150 requests a day.  
 - The wrapper fails fast when Gemini's retry hint is longer than `GEMINI_MAX_DELAY_MS`, meaning the quota will not come back soon.
 
 All thresholds, windows, limits and model IDs live in **`packages/shared/src/config.ts`**, never inline. They are starting values and will be tuned on real data.
@@ -334,7 +339,7 @@ Admin (server-rendered HTML, HTTP basic auth via `ADMIN_USER`/`ADMIN_PASSWORD`, 
 - Recent Events list with status/category filters. Event detail page: member articles, card texts, and buttons for hide/unhide, regenerate, flip contested, move to Story, merge into another Event.  
 - Stories: merge two Stories, rename the label.  
 - Sources: toggle active, see `last_new_item_at`.  
-- Cost page: daily `llm_calls` totals by purpose for the last 30 days.  
+- Cost page: daily `llm_calls` totals by purpose for the last 30 days, and freshness for the last `FRESHNESS_PAGE_DAYS` (7): daily p50/p90 minutes from the first outlet's publish time to our card (`packages/db/src/freshness.ts`), and per outlet the feed lag (fetched minus published).  
 - Every admin action writes `admin_actions`.
 - Regenerate and "flip to contested" do not call Gemini from the API: they queue a pg-boss `regen` job (`REGEN_QUEUE`) that the worker runs under the tick lock. Flip to contested adds an editor note to the card prompt and rejects a facts-only answer (one retry); until a valid card comes back the old one stays. Flip to facts-only nulls left/right at once. Admin regens do not count toward `MAX_REGENS`.
 - Event/Story writes shared by the worker and the admin (`refreshEvent`, `recountStory`, `mergeEventInto`) live in `packages/db/src/ops.ts`.
