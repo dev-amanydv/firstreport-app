@@ -22,5 +22,6 @@ export const COPY = {
   },
 };
 
-// Filled in with the privacy policy (M7). Until then the fine print is plain text.
-export const LEGAL = { termsUrl: "", privacyUrl: "" };
+// Served by the API (apps/api/src/legal), so they live wherever EXPO_PUBLIC_API_BASE_URL points.
+const SITE = (process.env.EXPO_PUBLIC_API_BASE_URL ?? "http://localhost:3000").replace(/\/+$/, "");
+export const LEGAL = { termsUrl: `${SITE}/terms`, privacyUrl: `${SITE}/privacy` };

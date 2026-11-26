@@ -5,6 +5,7 @@ import type { Db } from "@fr/db";
 import { adminRoutes, type AdminCredentials } from "./admin/routes.js";
 import type { GoogleVerifier } from "./auth/google.js";
 import { authRoutes } from "./auth/routes.js";
+import { legalRoutes } from "./legal/routes.js";
 import { publicRoutes } from "./public/routes.js";
 
 // The pg-boss subset the admin uses, so tests can pass a fake.
@@ -24,6 +25,7 @@ export function buildServer({ db, queue, admin, verifyGoogle = null, logger = fa
   });
 
   app.register(publicRoutes, { prefix: "/v1", db });
+  app.register(legalRoutes);
   // A separate plugin, so the public routes' cache header never reaches per-user answers.
   app.register(authRoutes, { prefix: "/v1", db, verifyGoogle });
   if (admin) {

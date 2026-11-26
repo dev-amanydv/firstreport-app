@@ -311,6 +311,7 @@ Public, read-only, `Cache-Control: public, s-maxage=60`:
 | `GET /v1/stories/:id/timeline`              | The Story's published Events, oldest first                                                                                                                                             |
 | `GET /v1/stories/:id/summary?asOf=:eventId` | The story-so-far as of that Event, or 404                                                                                                                                              |
 | `GET /v1/categories`, `GET /v1/config`    | Category labels; `{ showAiLabel, minAppVersion }`                                                                                                                                    |
+| `GET /privacy`, `GET /terms`               | Privacy policy (with `#delete-account`) and terms of use, static HTML; contact `info@firstreport.news` |
 | `GET /v1/explore`                           | Explore tab: `developing` (active Stories with 3+ Events updated in the last 72 h), `mostCovered` (today's Events by number of outlets, 2+), `topics` (entities in 2+ of today's Events) |
 | `GET /v1/search?q=&limit=20`                | Full-text search (`events.search_doc`, GIN-indexed) over published cards from the last 30 days, best match first; 400 if `q` is under 2 characters |
 

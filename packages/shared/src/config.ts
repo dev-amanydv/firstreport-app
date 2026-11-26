@@ -138,6 +138,11 @@ export function perspectivesEnabled() {
   return process.env.PERSPECTIVES_ENABLED === "true";
 }
 export const MIN_APP_VERSION = "1.0.0";
+
+// Privacy policy and terms, served by the API at /privacy and /terms (apps/api/src/legal).
+export const CONTACT_EMAIL = "info@firstreport.news";
+export const LEGAL_UPDATED = "26 November 2026";
+export const LEGAL_CACHE_SECONDS = 3600;
 export const CATEGORY_LABELS = {
   national: "National & Politics",
   business: "Business & Economy",
