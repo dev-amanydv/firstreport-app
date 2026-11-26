@@ -1,8 +1,8 @@
-import { useEffect, type ReactNode } from "react";
+import { Fragment, useEffect, type ReactNode } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
 import { fonts, metrics, type Palette } from "../theme/tokens";
-import { ClockIcon, CompressIcon, ExternalIcon, ShareIcon } from "./icons";
+import { ClockIcon, ExternalIcon, ShareIcon, SummaryIcon } from "./icons";
 
 type Props = {
   palette: Palette;
@@ -16,6 +16,11 @@ type Props = {
 };
 
 const REVEAL = { duration: 180, easing: Easing.out(Easing.quad) };
+const PILL_HEIGHT = 52;
+const ACTION_WIDTH = 60;
+const ICON_SIZE = 24;
+
+type ActionSpec = { key: string; label: string; icon: ReactNode; badge?: number; onPress: () => void };
 
 export function ActionBar({ palette, visible, eventCount, onHistory, onSummary, onSource, onShare }: Props) {
   const shown = useSharedValue(0);
@@ -28,41 +33,45 @@ export function ActionBar({ palette, visible, eventCount, onHistory, onSummary, 
     transform: [{ translateY: (1 - shown.value) * metrics.actionBarHeight }],
   }));
 
-  const hasStory = eventCount > 1;
+  // Icons only, so each one carries its meaning in its spoken label.
+  const actions: ActionSpec[] = [];
+  if (eventCount > 1) {
+    actions.push({
+      key: "history",
+      label: `History, ${eventCount} updates`,
+      icon: <ClockIcon color={palette.ink} size={ICON_SIZE} />,
+      badge: eventCount,
+      onPress: onHistory,
+    });
+    actions.push({ key: "summary", label: "Story so far", icon: <SummaryIcon color={palette.ink} size={ICON_SIZE} />, onPress: onSummary });
+  }
+  if (onSource) {
+    actions.push({ key: "source", label: "Open source article", icon: <ExternalIcon color={palette.ink} size={ICON_SIZE} />, onPress: onSource });
+  }
+  actions.push({ key: "share", label: "Share", icon: <ShareIcon color={palette.ink} size={ICON_SIZE} />, onPress: onShare });
+
   return (
     <Animated.View
-      pointerEvents={visible ? "auto" : "none"}
+      pointerEvents={visible ? "box-none" : "none"}
       accessibilityRole="toolbar"
       accessibilityLabel="Story actions"
       accessibilityElementsHidden={!visible}
       importantForAccessibility={visible ? "auto" : "no-hide-descendants"}
-      style={[styles.bar, { backgroundColor: palette.card, borderTopColor: palette.hairline }, style]}
+      style={[styles.bar, { backgroundColor: palette.card }, style]}
     >
-      {hasStory ? (
-        <Action label="History" onPress={onHistory} palette={palette} icon={<ClockIcon color={palette.ink} />}>
-          History <Text style={{ color: palette.muted }}>· {eventCount}</Text>
-        </Action>
-      ) : null}
-      {hasStory ? (
-        <Action label="Story so far" onPress={onSummary} palette={palette} icon={<CompressIcon color={palette.ink} />}>
-          Story so far
-        </Action>
-      ) : null}
-      {onSource ? (
-        <Action label="Open source article" onPress={onSource} palette={palette} icon={<ExternalIcon color={palette.ink} />}>
-          Source
-        </Action>
-      ) : null}
-      <Action label="Share" onPress={onShare} palette={palette} icon={<ShareIcon color={palette.ink} />}>
-        Share
-      </Action>
+      <View style={[styles.pill, { backgroundColor: palette.actionPill }]}>
+        {actions.map((action, i) => (
+          <Fragment key={action.key}>
+            {i > 0 ? <View style={[styles.pipe, { backgroundColor: palette.actionDivider }]} /> : null}
+            <Action palette={palette} {...action} />
+          </Fragment>
+        ))}
+      </View>
     </Animated.View>
   );
 }
 
-type ActionProps = { label: string; icon: ReactNode; palette: Palette; onPress: () => void; children: ReactNode };
-
-function Action({ label, icon, palette, onPress, children }: ActionProps) {
+function Action({ palette, label, icon, badge, onPress }: ActionSpec & { palette: Palette }) {
   return (
     <Pressable
       onPress={onPress}
@@ -70,8 +79,14 @@ function Action({ label, icon, palette, onPress, children }: ActionProps) {
       accessibilityLabel={label}
       style={({ pressed }) => [styles.action, pressed && { opacity: 0.5 }]}
     >
-      <View>{icon}</View>
-      <Text style={[styles.label, { color: palette.ink }]}>{children}</Text>
+      <View>
+        {icon}
+        {badge ? (
+          <View style={[styles.badge, { backgroundColor: palette.neutral, borderColor: palette.actionPill }]}>
+            <Text style={[styles.badgeText, { color: palette.onNeutral }]}>{badge > 99 ? "99+" : badge}</Text>
+          </View>
+        ) : null}
+      </View>
     </Pressable>
   );
 }
@@ -83,9 +98,29 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     height: metrics.actionBarHeight,
-    borderTopWidth: 1,
-    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
   },
-  action: { flex: 1, alignItems: "center", justifyContent: "center", gap: 4 },
-  label: { fontFamily: fonts.medium, fontSize: 12, includeFontPadding: false },
+  pill: {
+    height: PILL_HEIGHT,
+    borderRadius: PILL_HEIGHT / 2,
+    paddingHorizontal: 8,
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  action: { width: ACTION_WIDTH, height: PILL_HEIGHT, alignItems: "center", justifyContent: "center" },
+  pipe: { width: StyleSheet.hairlineWidth * 2, height: 22, borderRadius: 1 },
+  badge: {
+    position: "absolute",
+    top: -9,
+    right: -12,
+    minWidth: 20,
+    height: 20,
+    paddingHorizontal: 4,
+    borderRadius: 10,
+    borderWidth: 2,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  badgeText: { fontFamily: fonts.semibold, fontSize: 11, lineHeight: 13, includeFontPadding: false },
 });

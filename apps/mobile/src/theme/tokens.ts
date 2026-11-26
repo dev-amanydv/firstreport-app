@@ -8,6 +8,9 @@ export const light = {
   muted: "#5C5C5C",
   navInactive: "#666666",
   hairline: "#E6E6E6",
+  // The card's action pill and the thin pipes between its icons.
+  actionPill: "#F0F0EF",
+  actionDivider: "rgba(0,0,0,0.14)",
   imageFallback: "#CFD3D6",
   creditChip: "rgba(0,0,0,0.62)",
   creditText: "#FFFFFF",
@@ -36,6 +39,8 @@ export const dark: Palette = {
   muted: "#A3A3A3",
   navInactive: "#8A8A8A",
   hairline: "#2A2A2A",
+  actionPill: "#262626",
+  actionDivider: "rgba(255,255,255,0.16)",
   imageFallback: "#2B2F33",
   creditChip: "rgba(0,0,0,0.62)",
   creditText: "#FFFFFF",

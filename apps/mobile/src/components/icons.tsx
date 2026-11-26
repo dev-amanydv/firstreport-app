@@ -1,4 +1,4 @@
-import Svg, { Circle, Line, Path, Polygon, Polyline } from "react-native-svg";
+import Svg, { Circle, Line, Path, Polygon, Polyline, Rect } from "react-native-svg";
 
 // Paths copied from the design artboard (24 × 24 grid, stroke 1.75).
 type IconProps = { color: string; size?: number };
@@ -20,13 +20,14 @@ export function ClockIcon({ color, size = 22 }: IconProps) {
   );
 }
 
-export function CompressIcon({ color, size = 22 }: IconProps) {
+// Story so far: a page of text, read as "the summary".
+export function SummaryIcon({ color, size = 22 }: IconProps) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" {...stroke(color)}>
-      <Polyline points="4 14 10 14 10 20" />
-      <Polyline points="20 10 14 10 14 4" />
-      <Line x1="14" x2="21" y1="10" y2="3" />
-      <Line x1="3" x2="10" y1="21" y2="14" />
+      <Rect x="4" y="3" width="16" height="18" rx="3.5" />
+      <Line x1="8" x2="16" y1="8" y2="8" />
+      <Line x1="8" x2="16" y1="12" y2="12" />
+      <Line x1="8" x2="12.5" y1="16" y2="16" />
     </Svg>
   );
 }
@@ -36,7 +37,7 @@ export function ExternalIcon({ color, size = 22 }: IconProps) {
     <Svg width={size} height={size} viewBox="0 0 24 24" {...stroke(color)}>
       <Path d="M15 3h6v6" />
       <Path d="M10 14 21 3" />
-      <Path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+      <Path d="M18 13v4.5a3.5 3.5 0 0 1-3.5 3.5h-8A3.5 3.5 0 0 1 3 17.5v-8A3.5 3.5 0 0 1 6.5 6H11" />
     </Svg>
   );
 }
