@@ -15,7 +15,7 @@ import {
   SEARCH_QUERY_MIN,
   SHOW_AI_LABEL,
 } from "@fr/shared";
-import { decodeCursor, eventCard, explore, feed, search, summary, timeline } from "./queries.js";
+import { decodeCursor, eventCard, explore, feed, search, summary, timeline, tourCard } from "./queries.js";
 
 const feedQuery = z.object({
   category: categorySchema.optional(),
@@ -62,6 +62,9 @@ export async function publicRoutes(app: FastifyInstance, { db }: { db: Db }) {
   });
 
   app.get("/explore", async () => explore(db));
+
+  // The same card for everyone, so it caches like the rest; 404 when no Story qualifies.
+  app.get("/tour", async (_request, reply) => (await tourCard(db)) ?? reply.code(404).send({ error: "not found" }));
 
   app.get("/search", async (request) => {
     const { q, limit } = searchQuery.parse(request.query);

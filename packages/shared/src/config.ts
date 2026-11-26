@@ -124,6 +124,9 @@ export const EXPLORE_MOST_COVERED_MIN_SOURCES = 2;
 export const EXPLORE_MOST_COVERED_LIMIT = 10;
 export const EXPLORE_TOPICS_MIN_EVENTS = 2;
 export const EXPLORE_TOPICS_LIMIT = 10;
+// Onboarding tour: the newest card of a recent Story with enough Events to show History and Story so far.
+export const TOUR_MIN_EVENTS = 3;
+export const TOUR_WINDOW_HOURS = 72;
 // Search: Postgres full-text over published cards from this window (no index needed at this size).
 export const SEARCH_WINDOW_DAYS = 30;
 export const SEARCH_QUERY_MIN = 2;

@@ -14,6 +14,8 @@ import {
   FEED_PROGRESS_WINDOW_HOURS,
   perspectivesEnabled,
   SEARCH_WINDOW_DAYS,
+  TOUR_MIN_EVENTS,
+  TOUR_WINDOW_HOURS,
   type CardPayload,
   type Category,
   type Explore,
@@ -200,6 +202,30 @@ export async function summary(db: Db, storyId: string, asOfEventId: string) {
     .where(and(eq(storySummaries.storyId, storyId), eq(storySummaries.asOfEventId, asOfEventId)));
   if (!row) return null;
   return { storyId: row.storyId, asOfEventId: row.asOfEventId, summary: row.summary, createdAt: row.createdAt.toISOString() };
+}
+
+// The onboarding tour's card: the newest published Event of a recent active Story with several Events,
+// and only one that already has its story-so-far, so every step of the tour has something to show.
+// Cards with a photo come first, then longer Stories, then the newest.
+export async function tourCard(db: Db) {
+  const [row] = await db.execute<{ id: string }>(sql`
+    select latest.id
+    from ${stories} s
+    join lateral (
+      select e.id, e.image_url, e.first_seen_at from ${events} e
+      where e.story_id = s.id and e.status = 'published'
+      order by e.first_seen_at desc, e.id desc limit 1
+    ) latest on true
+    where s.status = 'active'
+      and s.event_count >= ${TOUR_MIN_EVENTS}
+      and s.last_event_at > now() - ${TOUR_WINDOW_HOURS}::int * interval '1 hour'
+      and exists (select 1 from ${storySummaries} ss where ss.as_of_event_id = latest.id)
+    order by (latest.image_url is not null) desc, s.event_count desc, latest.first_seen_at desc, latest.id
+    limit 1
+  `);
+  if (!row) return null;
+  const result = await eventCard(db, row.id);
+  return result && "card" in result ? result.card : null;
 }
 
 // Timestamps come back from raw queries as epoch milliseconds, so no driver-specific parsing is needed.
