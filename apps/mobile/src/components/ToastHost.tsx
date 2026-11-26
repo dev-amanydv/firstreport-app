@@ -1,12 +1,12 @@
 import { useEffect, useState } from "react";
-import { AccessibilityInfo, Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { AccessibilityInfo, Pressable, StyleSheet, Text, View } from "react-native";
 import Animated, { Easing, useAnimatedStyle, useSharedValue, withSpring, withTiming } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import Svg, { Defs, LinearGradient, Rect, Stop } from "react-native-svg";
 import { scheduleOnRN } from "react-native-worklets";
 import { hideToast, useToast, type Toast } from "../toast";
 import { fonts, metrics, type Palette } from "../theme/tokens";
 import { usePalette } from "../theme/useTheme";
+import { Glass, glassShadow } from "./Glass";
 import { BookmarkIcon } from "./icons";
 
 const SHOW_MS = 2600;
@@ -62,7 +62,7 @@ export function ToastHost() {
         accessibilityLiveRegion="polite"
         onLayout={(event) => setWidth(event.nativeEvent.layout.width)}
       >
-        {width ? <Glass palette={palette} width={width} /> : null}
+        {width ? <Glass palette={palette} width={width} height={HEIGHT} radius={RADIUS} /> : null}
         <View style={styles.content}>
           {shown.icon ? (
             <View style={[styles.badge, { backgroundColor: shown.icon === "saved" ? palette.neutral : palette.glassIconBg }]}>
@@ -95,37 +95,10 @@ export function ToastHost() {
   );
 }
 
-// Frosted glass without a native blur: a milky fill, a bright sheen across the top, a light rim and a darker
-// outer edge, so it reads as a raised drop of glass over the card.
-function Glass({ palette, width }: { palette: Palette; width: number }) {
-  return (
-    <Svg style={StyleSheet.absoluteFill} width={width} height={HEIGHT}>
-      <Defs>
-        <LinearGradient id="toastSheen" x1="0" y1="0" x2="0" y2="1">
-          <Stop offset="0" stopColor="#FFFFFF" stopOpacity={palette.glassSheen} />
-          <Stop offset="0.5" stopColor="#FFFFFF" stopOpacity={0} />
-          <Stop offset="1" stopColor="#FFFFFF" stopOpacity={palette.glassSheen * 0.35} />
-        </LinearGradient>
-        <LinearGradient id="toastRim" x1="0" y1="0" x2="0" y2="1">
-          <Stop offset="0" stopColor="#FFFFFF" stopOpacity={palette.glassRim} />
-          <Stop offset="1" stopColor="#FFFFFF" stopOpacity={palette.glassRim * 0.25} />
-        </LinearGradient>
-      </Defs>
-      <Rect x="0.5" y="0.5" width={width - 1} height={HEIGHT - 1} rx={RADIUS - 0.5} fill={palette.glassFill} stroke={palette.glassEdge} strokeWidth={1} />
-      <Rect x="0" y="0" width={width} height={HEIGHT} rx={RADIUS} fill="url(#toastSheen)" />
-      <Rect x="1.5" y="1.5" width={width - 3} height={HEIGHT - 3} rx={RADIUS - 1.5} fill="none" stroke="url(#toastRim)" strokeWidth={1} />
-    </Svg>
-  );
-}
-
 const styles = StyleSheet.create({
   host: { position: "absolute", left: 16, right: 16, alignItems: "center" },
   toast: { height: HEIGHT, borderRadius: RADIUS, minWidth: 200, maxWidth: 380 },
-  // Android draws elevation through a see-through fill, so the shadow is iOS only; the dark edge does the job there.
-  shadow: Platform.select({
-    ios: { shadowColor: "#000", shadowOpacity: 0.18, shadowRadius: 18, shadowOffset: { width: 0, height: 8 } },
-    default: {},
-  }),
+  shadow: glassShadow,
   content: { flex: 1, flexDirection: "row", alignItems: "center", paddingLeft: 10, paddingRight: 8, gap: 10 },
   badge: { width: 32, height: 32, borderRadius: 16, alignItems: "center", justifyContent: "center" },
   message: { flexShrink: 1, fontFamily: fonts.medium, fontSize: 14, lineHeight: 18, includeFontPadding: false, marginRight: 6 },

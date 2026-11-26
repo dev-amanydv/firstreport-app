@@ -30,28 +30,26 @@ export function advance(steps: TourStep[], index: number, event: TourEvent): num
   return Math.min(index + 1, steps.length - 1);
 }
 
-// The tooltip for each step. `eventCount` is the Story's size, shown on the History step.
-export function stepCopy(step: TourStep, eventCount: number, shortTour: boolean): string {
+// The tooltip for each step: one short line in plain words. `eventCount` is the Story's size.
+export function stepCopy(step: TourStep, eventCount: number): string {
   switch (step) {
     case "card":
-      return shortTour
-        ? "Every story is told in 60 words or less. Tap the card for more."
-        : "This is a real story that's still developing, told in 60 words or less. Tap the card for more.";
+      return "This is a real news story. Tap it to see more.";
     case "history":
-      return `This story has ${eventCount} updates. Tap the clock to see how it unfolded.`;
+      return `This story has ${eventCount} updates. Tap the clock to see them.`;
     case "summary":
-      return "Joined late? Tap here for the whole story so far in one read.";
+      return "New to this story? Tap here to catch up fast.";
     case "save":
-      return "Tap the bookmark to save a story for later. No account needed.";
+      return "Tap the bookmark to save this story for later.";
     case "swipe":
-      return "That's it. Swipe up to start reading the latest news.";
+      return "You're all set! Swipe up for more news.";
   }
 }
 
-// The muted line under a sheet's title while it is opened from the tour.
+// The line under a sheet's title while it is opened from the tour.
 export const TOUR_SHEET_NOTES = {
-  history: "Tap an earlier update to read it. Drag down to come back.",
-  summary: "Drag down to come back to the tour.",
+  history: "Tap any update to read it. Swipe down to go back.",
+  summary: "Swipe down to go back.",
 };
 
-export const EXPLORE_HINT = "Developing stories, trending topics and search live here.";
+export const EXPLORE_HINT = "Find more news and search here.";

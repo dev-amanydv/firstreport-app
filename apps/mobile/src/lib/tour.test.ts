@@ -33,11 +33,10 @@ describe("advance", () => {
 
 describe("stepCopy", () => {
   it("names the Story's size on the History step", () => {
-    expect(stepCopy("history", 5, false)).toContain("5 updates");
+    expect(stepCopy("history", 5)).toContain("5 updates");
   });
 
-  it("doesn't call a one-off card a developing story", () => {
-    expect(stepCopy("card", 1, true)).not.toContain("developing");
-    expect(stepCopy("card", 3, false)).toContain("developing");
+  it("keeps every step short", () => {
+    for (const step of tourSteps(3)) expect(stepCopy(step, 3).split(" ").length).toBeLessThanOrEqual(12);
   });
 });

@@ -10,7 +10,7 @@ import { CompassIcon, HomeIcon, PersonIcon } from "./icons";
 
 // The Explore pointer after the onboarding tour stays this long, or until a tab is pressed.
 const EXPLORE_HINT_MS = 6000;
-const HINT_WIDTH = 240;
+const HINT_WIDTH = 220;
 const HINT_INSET = 12;
 
 type TabBarProps = Parameters<NonNullable<ComponentProps<typeof Tabs>["tabBar"]>>[0];
@@ -25,7 +25,6 @@ export function BottomNav({ state, emitter, navigateToTab, descriptors, palette 
     const timer = setTimeout(hideExploreHint, EXPLORE_HINT_MS);
     return () => clearTimeout(timer);
   }, [exploreHint]);
-  const itemWidth = width / state.routes.length;
 
   return (
     <View style={[styles.nav, { paddingBottom: insets.bottom, height: metrics.navHeight + insets.bottom, backgroundColor: palette.canvas }]}>
@@ -54,7 +53,7 @@ export function BottomNav({ state, emitter, navigateToTab, descriptors, palette 
                 {exploreHint ? (
                   // Drawn above the bar; it only points, so touches pass through it.
                   <View pointerEvents="none" style={[styles.hint, { width: Math.min(HINT_WIDTH, width - HINT_INSET * 2) }]}>
-                    <TourBubble palette={palette} text={EXPLORE_HINT} arrow={{ side: "bottom", x: itemWidth / 2 - HINT_INSET - 6 }} />
+                    <TourBubble palette={palette} text={EXPLORE_HINT} />
                   </View>
                 ) : null}
               </>
@@ -71,5 +70,5 @@ export function BottomNav({ state, emitter, navigateToTab, descriptors, palette 
 const styles = StyleSheet.create({
   nav: { flexDirection: "row" },
   item: { flex: 1, alignItems: "center", justifyContent: "center" },
-  hint: { position: "absolute", bottom: metrics.navHeight - 6, left: HINT_INSET },
+  hint: { position: "absolute", bottom: metrics.navHeight - 2, left: HINT_INSET },
 });

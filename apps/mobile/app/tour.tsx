@@ -1,11 +1,11 @@
 import { createRef, useCallback, useEffect, useMemo, useState } from "react";
-import { Pressable, StyleSheet, Text, View, type LayoutChangeEvent } from "react-native";
+import { StyleSheet, Text, View, type LayoutChangeEvent } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { useAppConfig, useFeed, useTour } from "../src/api/client";
 import { Card } from "../src/components/Card";
 import { Skeleton } from "../src/components/Feed";
-import { TourOverlay } from "../src/components/TourOverlay";
+import { GlassPill, TourOverlay } from "../src/components/TourOverlay";
 import { advance, stepCopy, tourSteps } from "../src/lib/tour";
 import { useAnyOverlayOpen } from "../src/overlays";
 import { markTourDone, showExploreHint, TourContext, useTourEvents, type TourTargets } from "../src/tour";
@@ -65,18 +65,10 @@ export default function TourScreen() {
   return (
     <View style={[styles.screen, { paddingTop: insets.top, paddingBottom: insets.bottom + metrics.navGap, backgroundColor: palette.canvas }]}>
       <View style={styles.header}>
-        <Text style={[styles.title, { color: palette.muted }]}>
-          Quick tour{card ? ` · ${index + 1} of ${steps.length}` : ""}
+        <Text style={[styles.title, { color: palette.ink }]} accessibilityRole="header">
+          Quick tour
         </Text>
-        <Pressable
-          onPress={() => router.back()}
-          accessibilityRole="button"
-          accessibilityLabel="Skip the tour"
-          hitSlop={12}
-          style={({ pressed }) => pressed && { opacity: 0.5 }}
-        >
-          <Text style={[styles.skip, { color: palette.ink }]}>Skip</Text>
-        </Pressable>
+        <GlassPill palette={palette} label="Skip" accessibilityLabel="Skip the tour" onPress={() => router.back()} />
       </View>
       <View style={styles.body} onLayout={onLayout}>
         {!size ? null : !card ? (
@@ -98,7 +90,8 @@ export default function TourScreen() {
               <TourOverlay
                 palette={palette}
                 step={step}
-                text={stepCopy(step, eventCount, eventCount <= 1)}
+                text={stepCopy(step, eventCount)}
+                progress={{ index, total: steps.length }}
                 targets={targets}
                 onMissing={skipStep}
                 onFinish={finish}
@@ -114,8 +107,7 @@ export default function TourScreen() {
 const styles = StyleSheet.create({
   screen: { flex: 1 },
   header: { height: metrics.stripHeight, flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16 },
-  title: { fontFamily: fonts.medium, fontSize: 14 },
-  skip: { fontFamily: fonts.semibold, fontSize: 15 },
+  title: { fontFamily: fonts.headline, fontSize: 22, letterSpacing: -0.33 },
   body: { flex: 1 },
   page: { paddingHorizontal: metrics.cardInset },
 });

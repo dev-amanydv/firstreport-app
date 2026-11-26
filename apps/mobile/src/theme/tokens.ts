@@ -13,6 +13,8 @@ export const light = {
   actionDivider: "rgba(0,0,0,0.14)",
   // The frosted toast: milky fill, top sheen and rim strengths (0–1), outer edge, and the chip behind its icon/button.
   glassFill: "rgba(250,250,250,0.84)",
+  // Thicker glass for tour tooltips, which sit over text and must stay easy to read.
+  glassFillStrong: "rgba(250,250,250,0.95)",
   glassSheen: 0.9,
   glassRim: 0.95,
   glassEdge: "rgba(0,0,0,0.10)",
@@ -48,6 +50,7 @@ export const dark: Palette = {
   actionPill: "#262626",
   actionDivider: "rgba(255,255,255,0.16)",
   glassFill: "rgba(44,44,46,0.82)",
+  glassFillStrong: "rgba(44,44,46,0.95)",
   glassSheen: 0.16,
   glassRim: 0.28,
   glassEdge: "rgba(0,0,0,0.55)",
