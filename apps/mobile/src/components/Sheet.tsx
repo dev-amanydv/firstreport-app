@@ -7,16 +7,7 @@ import { scheduleOnRN } from "react-native-worklets";
 import { useOverlay } from "../overlays";
 import { fonts, metrics, type Palette } from "../theme/tokens";
 
-type Props = {
-  palette: Palette;
-  visible: boolean;
-  title: string;
-  centerTitle?: boolean;
-  // One muted line under the title, e.g. a pointer from the onboarding tour.
-  note?: string;
-  onClose: () => void;
-  children: ReactNode;
-};
+type Props = { palette: Palette; visible: boolean; title: string; centerTitle?: boolean; onClose: () => void; children: ReactNode };
 
 const OPEN = { duration: 240, easing: Easing.out(Easing.cubic) };
 const CLOSE = { duration: 200, easing: Easing.in(Easing.quad) };
@@ -27,7 +18,7 @@ const MAX_HEIGHT_SHARE = 0.75;
 
 // A bottom sheet over everything: slides up, closes on the scrim, the back button or a drag down.
 // It stays mounted until the closing slide ends, so the content does not vanish mid-animation.
-export function Sheet({ palette, visible, title, centerTitle = false, note, onClose, children }: Props) {
+export function Sheet({ palette, visible, title, centerTitle = false, onClose, children }: Props) {
   const { height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const [mounted, setMounted] = useState(visible);
@@ -83,7 +74,6 @@ export function Sheet({ palette, visible, title, centerTitle = false, note, onCl
               <Text style={[styles.title, centerTitle && styles.centered, { color: palette.ink }]} accessibilityRole="header">
                 {title}
               </Text>
-              {note ? <Text style={[styles.note, centerTitle && styles.centered, { color: palette.muted }]}>{note}</Text> : null}
             </View>
           </GestureDetector>
           <ScrollView contentContainerStyle={styles.content}>{children}</ScrollView>
@@ -121,7 +111,6 @@ const styles = StyleSheet.create({
   handle: { alignSelf: "center", width: 36, height: 4, borderRadius: 2, opacity: 0.35, marginBottom: 14 },
   title: { fontFamily: fonts.headline, fontSize: 22, lineHeight: 26, letterSpacing: -0.33, includeFontPadding: false },
   centered: { textAlign: "center" },
-  note: { fontFamily: fonts.regular, fontSize: 13, lineHeight: 18, marginTop: 6 },
   content: { paddingHorizontal: 20 },
   message: { paddingVertical: 24, gap: 12 },
   messageText: { fontFamily: fonts.regular, fontSize: 15, lineHeight: 22 },

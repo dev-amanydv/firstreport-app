@@ -11,7 +11,6 @@ type Props = {
   storyId: string;
   // The Event being read; it is marked and not tappable.
   currentId: string;
-  note?: string;
   onClose: () => void;
   onOpen: (eventId: string) => void;
 };
@@ -19,7 +18,7 @@ type Props = {
 const DOT = 9;
 
 // The Story's Events, oldest first, on a thin vertical line.
-export function HistorySheet({ palette, visible, storyId, currentId, note, onClose, onOpen }: Props) {
+export function HistorySheet({ palette, visible, storyId, currentId, onClose, onOpen }: Props) {
   const timeline = useTimeline(storyId, visible);
 
   let content;
@@ -63,7 +62,7 @@ export function HistorySheet({ palette, visible, storyId, currentId, note, onClo
     });
 
   return (
-    <Sheet palette={palette} visible={visible} title="Timeline" note={note} onClose={onClose}>
+    <Sheet palette={palette} visible={visible} title="Timeline" onClose={onClose}>
       {content}
     </Sheet>
   );

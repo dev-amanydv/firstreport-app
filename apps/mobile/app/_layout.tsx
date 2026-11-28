@@ -13,7 +13,6 @@ import { loadCardsSeen } from "../src/authPrompt";
 import { loadHintCount } from "../src/hints";
 import { ToastHost } from "../src/components/ToastHost";
 import { loadSaved } from "../src/saved";
-import { loadTourDue } from "../src/tour";
 import { dark, fonts } from "../src/theme/tokens";
 import { loadAppearance, usePalette } from "../src/theme/useTheme";
 
@@ -23,7 +22,6 @@ void loadHintCount();
 void loadCardsSeen();
 void loadSession();
 void loadSaved();
-void loadTourDue();
 const appearanceReady = loadAppearance();
 
 const queryClient = new QueryClient({
@@ -67,7 +65,6 @@ export default function RootLayout() {
           <StatusBar style={palette === dark ? "light" : "dark"} />
           <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: palette.canvas } }}>
             <Stack.Screen name="event/[id]" options={{ presentation: "modal", animation: "slide_from_bottom" }} />
-            <Stack.Screen name="tour" options={{ presentation: "fullScreenModal", animation: "fade", gestureEnabled: false }} />
           </Stack>
           <ToastHost />
         </QueryClientProvider>

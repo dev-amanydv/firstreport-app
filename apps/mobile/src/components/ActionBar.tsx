@@ -1,7 +1,6 @@
-import { Fragment, useEffect, type ReactNode, type RefObject } from "react";
-import { Pressable, StyleSheet, Text, View, type HostInstance } from "react-native";
+import { Fragment, useEffect, type ReactNode } from "react";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
-import { useTourTarget } from "../tour";
 import { fonts, metrics, type Palette } from "../theme/tokens";
 import { ClockIcon, ExternalIcon, ShareIcon, SummaryIcon } from "./icons";
 
@@ -21,12 +20,10 @@ const PILL_HEIGHT = 52;
 const ACTION_WIDTH = 60;
 const ICON_SIZE = 24;
 
-type ActionSpec = { key: string; label: string; icon: ReactNode; badge?: number; target?: RefObject<HostInstance | null>; onPress: () => void };
+type ActionSpec = { key: string; label: string; icon: ReactNode; badge?: number; onPress: () => void };
 
 export function ActionBar({ palette, visible, eventCount, onHistory, onSummary, onSource, onShare }: Props) {
   const shown = useSharedValue(0);
-  const historyTarget = useTourTarget("history");
-  const summaryTarget = useTourTarget("summary");
   useEffect(() => {
     shown.value = withTiming(visible ? 1 : 0, REVEAL);
   }, [visible, shown]);
@@ -44,10 +41,9 @@ export function ActionBar({ palette, visible, eventCount, onHistory, onSummary, 
       label: `History, ${eventCount} updates`,
       icon: <ClockIcon color={palette.ink} size={ICON_SIZE} />,
       badge: eventCount,
-      target: historyTarget,
       onPress: onHistory,
     });
-    actions.push({ key: "summary", label: "Story so far", icon: <SummaryIcon color={palette.ink} size={ICON_SIZE} />, target: summaryTarget, onPress: onSummary });
+    actions.push({ key: "summary", label: "Story so far", icon: <SummaryIcon color={palette.ink} size={ICON_SIZE} />, onPress: onSummary });
   }
   if (onSource) {
     actions.push({ key: "source", label: "Open source article", icon: <ExternalIcon color={palette.ink} size={ICON_SIZE} />, onPress: onSource });
@@ -75,10 +71,9 @@ export function ActionBar({ palette, visible, eventCount, onHistory, onSummary, 
   );
 }
 
-function Action({ palette, label, icon, badge, target, onPress }: ActionSpec & { palette: Palette }) {
+function Action({ palette, label, icon, badge, onPress }: ActionSpec & { palette: Palette }) {
   return (
     <Pressable
-      ref={target}
       onPress={onPress}
       accessibilityRole="button"
       accessibilityLabel={label}

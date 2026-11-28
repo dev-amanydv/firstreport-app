@@ -94,11 +94,6 @@ export function useEvent(id: string) {
   return useQuery({ queryKey: ["event", id], queryFn: () => getOrNull(`/v1/events/${id}`, cardPayloadSchema) });
 }
 
-// The onboarding tour's card; null when no developing Story qualifies (the tour then uses the feed's newest).
-export function useTour() {
-  return useQuery({ queryKey: ["tour"], queryFn: () => getOrNull("/v1/tour", cardPayloadSchema), staleTime: Infinity });
-}
-
 export function useExplore() {
   return useQuery({ queryKey: ["explore"], queryFn: () => get("/v1/explore", exploreSchema) });
 }

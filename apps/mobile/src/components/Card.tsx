@@ -5,8 +5,6 @@ import { router } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
 import type { CardPayload } from "@fr/shared";
 import { markHintShown, shouldHint } from "../hints";
-import { TOUR_SHEET_NOTES } from "../lib/tour";
-import { tourEmit, useInTour, useTourTarget } from "../tour";
 import { imageHeight } from "../lib/layout";
 import { relativeTime } from "../lib/time";
 import { fonts, metrics, TAP_SLOP, type Palette } from "../theme/tokens";
@@ -59,13 +57,6 @@ export const Card = memo(function Card({ card, palette, width, height, progress,
     }
   }, [active, contested, hint]);
 
-  // The onboarding tour follows the reader through these; outside a tour nobody listens.
-  const inTour = useInTour();
-  const cardTarget = useTourTarget("card");
-  useEffect(() => {
-    if (actionsVisible) tourEmit("actionsShown", card.id);
-  }, [actionsVisible, card.id]);
-
   const toggleActions = () => setActionsVisible((visible) => !visible);
   const tapConfig = { maxDistance: TAP_SLOP.maxDistance, maxDuration: TAP_SLOP.maxDuration, runOnJS: true, onActivate: toggleActions };
   const tap = useTapGesture(tapConfig);
@@ -74,20 +65,13 @@ export const Card = memo(function Card({ card, palette, width, height, progress,
 
   const texts = { neutral: card.neutral, left: card.left ?? card.neutral, right: card.right ?? card.neutral };
   const source = card.sources[0];
-  const openSheet = (which: "history" | "summary") => {
-    setSheet(which);
-    tourEmit(which === "history" ? "historyOpened" : "summaryOpened", card.id);
-  };
-  const closeSheet = () => {
-    if (sheet) tourEmit(sheet === "history" ? "historyClosed" : "summaryClosed", card.id);
-    setSheet(null);
-  };
+  const closeSheet = () => setSheet(null);
   const doneSharing = useCallback(() => setSharing(null), []);
 
   return (
     <View style={[styles.card, { height, backgroundColor: palette.card }]}>
       <GestureDetector gesture={tap}>
-        <View ref={cardTarget} collapsable={false}>
+        <View collapsable={false}>
           <CardImage
             palette={palette}
             uri={card.imageUrl}
@@ -152,8 +136,8 @@ export const Card = memo(function Card({ card, palette, width, height, progress,
         palette={palette}
         visible={actionsVisible}
         eventCount={card.story?.eventCount ?? 1}
-        onHistory={() => openSheet("history")}
-        onSummary={() => openSheet("summary")}
+        onHistory={() => setSheet("history")}
+        onSummary={() => setSheet("summary")}
         onSource={source ? () => void WebBrowser.openBrowserAsync(source.url) : null}
         onShare={() => setSharing((current) => current ?? pane)}
       />
@@ -167,7 +151,6 @@ export const Card = memo(function Card({ card, palette, width, height, progress,
             visible={sheet === "history"}
             storyId={card.story.id}
             currentId={card.id}
-            note={inTour ? TOUR_SHEET_NOTES.history : undefined}
             onClose={closeSheet}
             onOpen={(id) => {
               closeSheet();
@@ -180,7 +163,6 @@ export const Card = memo(function Card({ card, palette, width, height, progress,
             storyId={card.story.id}
             eventId={card.id}
             eventAt={card.firstSeenAt}
-            note={inTour ? TOUR_SHEET_NOTES.summary : undefined}
             onClose={closeSheet}
           />
         </>
